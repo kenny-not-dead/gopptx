@@ -1,0 +1,7 @@
+/example
+
+/coverage.txt
+/dist/
+/bin/
+*.exe
+*.test
