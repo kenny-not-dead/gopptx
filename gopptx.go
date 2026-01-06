@@ -31,10 +31,11 @@ type File struct {
 	ContentTypes  *contentTypes
 	Path          string
 	Pkg           sync.Map
+	Presentation  *pptxPresentation
 	Relationships sync.Map
 	Slide         sync.Map
 	SlideCount    int
-	Presentation  *pptxPresentation
+	Theme         *decodeTheme
 	ZipWriter     func(io.Writer) ZipWriter
 }
 
@@ -141,7 +142,7 @@ func OpenReader(r io.Reader, opts ...Options) (*File, error) {
 	if f.slideMap, err = f.getSlideMap(); err != nil {
 		return f, err
 	}
-	// f.Theme, err = f.themeReader() // TODO
+	f.Theme, err = f.themeReader()
 	return f, err
 }
 

@@ -43,6 +43,7 @@ const (
 const (
 	defaultXMLPathContentTypes = "[Content_Types].xml"
 	defaultXMLPathRels         = "_rels/.rels"
+	defaultXMLPathTheme        = "ppt/theme/theme1.xml"
 )
 
 const (
