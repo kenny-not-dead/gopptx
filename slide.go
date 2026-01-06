@@ -111,10 +111,10 @@ func (f *File) getSlideXMLPath(slide string) (string, bool) {
 	return name, ok
 }
 
-// GetShapes provides a function to get shapes by given slide name.
-func (f *File) GetShapes(slide string) ([]Shape, error) {
+// GetShapes provides a function to get shapes by given slide id.
+func (f *File) GetShapes(slideID string) ([]Shape, error) {
 	var shapes []Shape
-	ws, err := f.slideReader(slide)
+	ws, err := f.slideReader(slideID)
 	if err != nil {
 		return shapes, err
 	}
@@ -125,4 +125,34 @@ func (f *File) GetShapes(slide string) ([]Shape, error) {
 // getShapes returns shapes of the slide.
 func (ws *Slide) getShapes() []Shape {
 	return ws.CommonSlideData.ShapeTree.Shape
+}
+
+// GetGroupShapeProperties provides a function to get group shape properties by given slide id.
+func (f *File) GetGroupShapeProperties(slideID string) (*GroupShapeProperties, error) {
+	s, err := f.slideReader(slideID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.getGroupShapeProperties(), err
+}
+
+// getGroupShapeProperties returns group shape properties of the slide.
+func (ws *Slide) getGroupShapeProperties() *GroupShapeProperties {
+	return ws.CommonSlideData.ShapeTree.GroupShapeProperties
+}
+
+// GetNonVisualGroupShapeProperties provides a function to get non visual group shape properties by given slide id.
+func (f *File) GetNonVisualGroupShapeProperties(slideID string) (*NonVisualGroupShapeProperties, error) {
+	s, err := f.slideReader(slideID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.getNonVisualGroupShapeProperties(), err
+}
+
+// NonVisualGroupShapeProperties returns non visual group shape properties of the slide.
+func (ws *Slide) getNonVisualGroupShapeProperties() *NonVisualGroupShapeProperties {
+	return ws.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties
 }
