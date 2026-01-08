@@ -16,7 +16,7 @@
             </p:grpSpPr>
             <p:sp>
                 <p:nvSpPr>
-                    <p:cNvPr id="7" name="PlaceHolder 1"/>
+                    <p:cNvPr id="7" name="PlaceHolder 1"></p:cNvPr>
                     <p:cNvSpPr>
                         <a:spLocks noGrp="1"/>
                     </p:cNvSpPr>
@@ -56,7 +56,7 @@
             </p:sp>
             <p:sp>
                 <p:nvSpPr>
-                    <p:cNvPr id="8" name="PlaceHolder 2"/>
+                    <p:cNvPr id="8" name="PlaceHolder 2"></p:cNvPr>
                     <p:cNvSpPr>
                         <a:spLocks noGrp="1"/>
                     </p:cNvSpPr>
@@ -98,10 +98,10 @@
     </p:cSld>
     <mc:AlternateContent>
         <mc:Choice Requires="p14">
-            <p:transition spd="slow" p14:dur="2000"/>
+            <p:transition spd="slow" p14:dur="2000"></p:transition>
         </mc:Choice>
         <mc:Fallback>
-            <p:transition spd="slow"/>
+            <p:transition spd="slow"></p:transition>
         </mc:Fallback>
     </mc:AlternateContent>
 </p:sld>
