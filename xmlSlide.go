@@ -8,28 +8,32 @@
 package gopptx
 
 import (
+	"encoding/xml"
 	"sync"
 )
 
 type Slide struct {
-	mu              sync.Mutex
-	CommonSlideData SlideData `xml:"cSld"`
+	mu                     sync.Mutex
+	XMLName                xml.Name          `xml:"p:sld"`
+	CommonSlideData        SlideData         `xml:"p:cSld"`
+	AlternateContent       *alternateContent `xml:"mc:AlternateContent"`
+	DecodeAlternateContent *innerXML         `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
 }
 
 type SlideData struct {
-	ShapeTree ShapeTree `xml:"spTree"`
+	ShapeTree ShapeTree `xml:"p:spTree"`
 }
 
 type ShapeTree struct {
-	NonVisualGroupShapeProperties *NonVisualGroupShapeProperties `xml:"nvGrpSpPr,omitempty"`
-	GroupShapeProperties          *GroupShapeProperties          `xml:"grpSpPr,omitempty"`
-	Shape                         []Shape                        `xml:"sp"`
+	NonVisualGroupShapeProperties *NonVisualGroupShapeProperties `xml:"p:nvGrpSpPr,omitempty"`
+	GroupShapeProperties          *GroupShapeProperties          `xml:"p:grpSpPr,omitempty"`
+	Shape                         []Shape                        `xml:"p:sp"`
 }
 
 type NonVisualGroupShapeProperties struct {
-	CommonNonVisualProperties           *CommonNonVisualProperties           `xml:"cNvPr"`
-	CommonNonVisualGroupShapeProperties *CommonNonVisualGroupShapeProperties `xml:"cNvGrpSpPr"`
-	NonVisualProperties                 *NonVisualProperties                 `xml:"nvPr"`
+	CommonNonVisualProperties           *CommonNonVisualProperties           `xml:"p:cNvPr"`
+	CommonNonVisualGroupShapeProperties *CommonNonVisualGroupShapeProperties `xml:"p:cNvGrpSpPr"`
+	NonVisualProperties                 *NonVisualProperties                 `xml:"p:nvPr"`
 }
 
 type CommonNonVisualProperties struct {
@@ -42,14 +46,14 @@ type CommonNonVisualGroupShapeProperties struct{}
 type NonVisualProperties struct{}
 
 type GroupShapeProperties struct {
-	Xfrm *Xfrm `xml:"xfrm"`
+	Xfrm *Xfrm `xml:"a:xfrm"`
 }
 
 type Xfrm struct {
-	Offset       *Offset  `xml:"off"`
-	Extents      *Extents `xml:"ext"`
-	ChildOffset  *Offset  `xml:"chOff"`
-	ChildExtents *Extents `xml:"chExt"`
+	Offset       *Offset  `xml:"a:off"`
+	Extents      *Extents `xml:"a:ext"`
+	ChildOffset  *Offset  `xml:"a:chOff"`
+	ChildExtents *Extents `xml:"a:chExt"`
 }
 
 type Offset struct {
@@ -63,15 +67,15 @@ type Extents struct {
 }
 
 type Shape struct {
-	NonVisualShapeProperties *NonVisualShapeProperties `xml:"nvSpPr"`
-	ShapeProperties          *ShapeProperties          `xml:"spPr"`
-	TextBody                 *TextBody                 `xml:"txBody,omitempty"`
+	NonVisualShapeProperties *NonVisualShapeProperties `xml:"p:nvSpPr"`
+	ShapeProperties          *ShapeProperties          `xml:"p:spPr"`
+	TextBody                 *TextBody                 `xml:"p:txBody,omitempty"`
 }
 
 type NonVisualShapeProperties struct {
-	CommonNonVisualProperties      *CommonNonVisualProperties      `xml:"cNvPr"`
-	CommonNonVisualShapeProperties *CommonNonVisualShapeProperties `xml:"cNvSpPr"`
-	NonVisualProperties            *NonVisualProperties            `xml:"nvPr"`
+	CommonNonVisualProperties      *CommonNonVisualProperties      `xml:"p:cNvPr"`
+	CommonNonVisualShapeProperties *CommonNonVisualShapeProperties `xml:"p:cNvSpPr"`
+	NonVisualProperties            *NonVisualProperties            `xml:"p:nvPr"`
 }
 
 type CommonNonVisualShapeProperties struct {
@@ -80,15 +84,15 @@ type CommonNonVisualShapeProperties struct {
 }
 
 type ShapeProperties struct {
-	Xfrm           *Xfrm           `xml:"xfrm"`
-	PresetGeometry *PresetGeometry `xml:"prstGeom,omitempty"`
-	NoFill         *any            `xml:"noFill,omitempty"`
-	Ln             *Line           `xml:"ln,omitempty"`
+	Xfrm           *Xfrm           `xml:"a:xfrm"`
+	PresetGeometry *PresetGeometry `xml:"a:prstGeom,omitempty"`
+	NoFill         *any            `xml:"a:noFill,omitempty"`
+	Ln             *Line           `xml:"a:ln,omitempty"`
 }
 
 type PresetGeometry struct {
 	Preset          string `xml:"prst,attr"`
-	AdjustValueList *any   `xml:"avLst"`
+	AdjustValueList *any   `xml:"a:avLst"`
 }
 
 type AdjustValue struct {
@@ -98,12 +102,12 @@ type AdjustValue struct {
 
 type Line struct {
 	Width  int  `xml:"w,attr,omitempty"`
-	NoFill *any `xml:"noFill,omitempty"`
+	NoFill *any `xml:"a:noFill,omitempty"`
 }
 
 type TextBody struct {
-	BodyProperties *BodyProperties `xml:"bodyPr"`
-	Paragraph      []Paragraph     `xml:"p"`
+	BodyProperties *BodyProperties `xml:"a:bodyPr"`
+	Paragraph      []Paragraph     `xml:"a:p"`
 }
 
 type BodyProperties struct {
@@ -116,9 +120,9 @@ type BodyProperties struct {
 }
 
 type Paragraph struct {
-	ParagraphProperties       *ParagraphProperties `xml:"pPr,omitempty"`
+	ParagraphProperties       *ParagraphProperties `xml:"a:pPr,omitempty"`
 	Runs                      []Runs               `xml:"r"`
-	EndParagraphRunProperties *Runs                `xml:"endParaRPr,omitempty"`
+	EndParagraphRunProperties *Runs                `xml:"a:endParaRPr,omitempty"`
 }
 
 type ParagraphProperties struct {

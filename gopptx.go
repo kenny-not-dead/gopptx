@@ -16,12 +16,15 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"golang.org/x/net/html/charset"
 )
 
 // File define a populated slides file struct.
 type File struct {
 	mu            sync.Mutex
 	checked       sync.Map
+	zip64Entries  []string
 	options       *Options
 	tempFiles     sync.Map
 	slideMap      map[string]string
@@ -83,12 +86,14 @@ func OpenFile(filename string, opts ...Options) (*File, error) {
 // newFile is object builder
 func newFile() *File {
 	return &File{
-		options:   &Options{UnzipSizeLimit: UnzipSizeLimit, UnzipXMLSizeLimit: StreamChunkSize},
-		xmlAttr:   sync.Map{},
-		checked:   sync.Map{},
-		slideMap:  make(map[string]string),
-		tempFiles: sync.Map{},
-		ZipWriter: func(w io.Writer) ZipWriter { return zip.NewWriter(w) },
+		options:       &Options{UnzipSizeLimit: UnzipSizeLimit, UnzipXMLSizeLimit: StreamChunkSize},
+		xmlAttr:       sync.Map{},
+		checked:       sync.Map{},
+		slideMap:      make(map[string]string),
+		Slide:         sync.Map{},
+		tempFiles:     sync.Map{},
+		CharsetReader: charset.NewReaderLabel,
+		ZipWriter:     func(w io.Writer) ZipWriter { return zip.NewWriter(w) },
 	}
 }
 
@@ -183,14 +188,14 @@ func (f *File) slideReader(slideName string) (slide *Slide, err error) {
 
 	slide = new(Slide)
 	if attrs, ok := f.xmlAttr.Load(path); !ok {
-		d := f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readBytes(path))))
+		d := f.xmlNewDecoder(bytes.NewReader(f.readBytes(path)))
 		if attrs == nil {
 			attrs = []xml.Attr{}
 		}
 		attrs = append(attrs.([]xml.Attr), getRootElement(d)...)
 		f.xmlAttr.Store(path, attrs)
 	}
-	if err = f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readBytes(path)))).
+	if err = f.xmlNewDecoder(bytes.NewReader(f.readBytes(path))).
 		Decode(slide); err != nil && err != io.EOF {
 		return
 	}

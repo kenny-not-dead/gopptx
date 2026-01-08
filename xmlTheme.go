@@ -51,9 +51,9 @@ type colorScheme struct {
 // complexTypeColor holds the actual color values that are to be applied to a given
 // diagram and how those colors are to be applied.
 type complexTypeColor struct {
-	ScrgbClr    *innerXML    `xml:"a:scrgbClr"`
+	ScrgbColor  *innerXML    `xml:"a:scrgbClr"`
 	SrgbColor   *srgbColor   `xml:"a:srgbClr"`
-	HslClr      *innerXML    `xml:"a:hslClr"`
+	HslColor    *innerXML    `xml:"a:hslClr"`
 	SystemColor *systemColor `xml:"a:sysClr"`
 	SchemeColor *innerXML    `xml:"a:schemeClr"`
 	PresetColor *innerXML    `xml:"a:prstClr"`
@@ -156,19 +156,19 @@ type decodeBaseStyles struct {
 // decodeColorScheme defines the structure used to parse a set of colors for the
 // theme.
 type decodeColorScheme struct {
-	Name     string                      `xml:"name,attr"`
-	Dk1      decodeComplexTypeColorColor `xml:"dk1"`
-	Lt1      decodeComplexTypeColorColor `xml:"lt1"`
-	Dk2      decodeComplexTypeColorColor `xml:"dk2"`
-	Lt2      decodeComplexTypeColorColor `xml:"lt2"`
-	Accent1  decodeComplexTypeColorColor `xml:"accent1"`
-	Accent2  decodeComplexTypeColorColor `xml:"accent2"`
-	Accent3  decodeComplexTypeColorColor `xml:"accent3"`
-	Accent4  decodeComplexTypeColorColor `xml:"accent4"`
-	Accent5  decodeComplexTypeColorColor `xml:"accent5"`
-	Accent6  decodeComplexTypeColorColor `xml:"accent6"`
-	Hlink    decodeComplexTypeColorColor `xml:"hlink"`
-	FolHlink decodeComplexTypeColorColor `xml:"folHlink"`
+	Name     string                 `xml:"name,attr"`
+	Dk1      decodeComplexTypeColor `xml:"dk1"`
+	Lt1      decodeComplexTypeColor `xml:"lt1"`
+	Dk2      decodeComplexTypeColor `xml:"dk2"`
+	Lt2      decodeComplexTypeColor `xml:"lt2"`
+	Accent1  decodeComplexTypeColor `xml:"accent1"`
+	Accent2  decodeComplexTypeColor `xml:"accent2"`
+	Accent3  decodeComplexTypeColor `xml:"accent3"`
+	Accent4  decodeComplexTypeColor `xml:"accent4"`
+	Accent5  decodeComplexTypeColor `xml:"accent5"`
+	Accent6  decodeComplexTypeColor `xml:"accent6"`
+	Hlink    decodeComplexTypeColor `xml:"hlink"`
+	FolHlink decodeComplexTypeColor `xml:"folHlink"`
 }
 
 // decodeFontScheme defines the structure used to parse font scheme within the
@@ -188,10 +188,10 @@ type decodeFontCollection struct {
 	Font  []complexTypeSupplementalFont `xml:"font"`
 }
 
-// decodeComplexTypeColorColor defines the structure used to parse the actual color values
+// decodeComplexTypeColor defines the structure used to parse the actual color values
 // that are to be applied to a given diagram and how those colors are to be
 // applied.
-type decodeComplexTypeColorColor struct {
+type decodeComplexTypeColor struct {
 	ScrgbColor  *innerXML    `xml:"scrgbClr"`
 	SrgbColor   *srgbColor   `xml:"srgbClr"`
 	HslColor    *innerXML    `xml:"hslClr"`
@@ -215,11 +215,6 @@ type decodeStyleMatrix struct {
 // attribute.
 type srgbColor struct {
 	Val *string `xml:"val,attr"`
-}
-
-// innerXML holds parts of XML content currently not unmarshal.
-type innerXML struct {
-	Content string `xml:",innerxml"`
 }
 
 type complexTypeTextFont struct {

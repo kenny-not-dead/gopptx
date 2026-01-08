@@ -9,6 +9,7 @@ package gopptx
 
 import (
 	"bytes"
+	"io"
 	"os"
 )
 
@@ -39,4 +40,34 @@ func (bw *bufferedWriter) Close() error {
 	}
 	defer os.Remove(bw.tmp.Name())
 	return bw.tmp.Close()
+}
+
+// Reader provides read-access to the underlying buffer/file.
+func (bw *bufferedWriter) Reader() (io.Reader, error) {
+	if bw.tmp == nil {
+		return bytes.NewReader(bw.buf.Bytes()), nil
+	}
+	if err := bw.Flush(); err != nil {
+		return nil, err
+	}
+	fi, err := bw.tmp.Stat()
+	if err != nil {
+		return nil, err
+	}
+	// os.File.ReadAt does not affect the cursor position and is safe to use here
+	return io.NewSectionReader(bw.tmp, 0, fi.Size()), nil
+}
+
+// Flush the entire in-memory buffer to the temp file, if a temp file is being
+// used.
+func (bw *bufferedWriter) Flush() error {
+	if bw.tmp == nil {
+		return nil
+	}
+	_, err := bw.buf.WriteTo(bw.tmp)
+	if err != nil {
+		return err
+	}
+	bw.buf.Reset()
+	return nil
 }

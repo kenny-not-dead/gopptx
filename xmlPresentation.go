@@ -31,25 +31,27 @@ type relationship struct {
 // pptxPresentation contains elements and attributes that encompass the data
 // content of the presentation.
 type pptxPresentation struct {
-	XMLName     xml.Name    `xml:"http://schemas.openxmlformats.org/presentationml/2006/main presentation"`
-	MasterSlide masterSlide `xml:"sldMasterIdLst"`
-	Slides      *pptxSlides `xml:"sldIdLst,omitempty"`
-	SlideSize   *slideSize  `xml:"p:sldSz,omitempty"`
-	NotesSize   *slideSize  `xml:"p:notesSz,omitempty"`
+	XMLName                xml.Name          `xml:"http://schemas.openxmlformats.org/presentationml/2006/main p:presentation"`
+	AlternateContent       *alternateContent `xml:"mc:AlternateContent"`
+	DecodeAlternateContent *innerXML         `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
+	MasterSlide            masterSlide       `xml:"p:sldMasterIdLst"`
+	Slides                 *pptxSlides       `xml:"p:sldIdLst,omitempty"`
+	SlideSize              *slideSize        `xml:"p:sldSz,omitempty"`
+	NotesSize              *slideSize        `xml:"p:notesSz,omitempty"`
 }
 
 type masterSlide struct {
-	MasterSlide pptxSlide `xml:"sldMasterId"`
+	MasterSlide pptxSlide `xml:"p:sldMasterId"`
 }
 
 type pptxSlides struct {
-	Slide []pptxSlide `xml:"sldId"`
+	Slide []pptxSlide `xml:"p:sldId"`
 }
 
 // pptxSlide defines a slide in this presentation. Slide data is stored in a
 // separate part.
 type pptxSlide struct {
-	ID      string `xml:"http://schemas.openxmlformats.org/officeDocument/2006/relationships id,attr"`
+	ID      string `xml:"r:id,attr"`
 	SlideID string `xml:"id,attr"`
 }
 

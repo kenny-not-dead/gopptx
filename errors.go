@@ -19,8 +19,16 @@ var (
 	// ErrOptionsUnzipSizeLimit defined the error message for receiving
 	// invalid UnzipSizeLimit and UnzipXMLSizeLimit.
 	ErrOptionsUnzipSizeLimit = errors.New("the value of UnzipSizeLimit should be greater than or equal to UnzipXMLSizeLimit")
+	// ErrMaxFilePathLength defined the error message on receive the file path
+	// length overflow.
+	ErrMaxFilePathLength = fmt.Errorf("file path length exceeds maximum limit %d characters", MaxFilePathLength)
+	// ErrSave defined the error message for saving file.
+	ErrSave = errors.New("no path defined for file, consider File.WriteTo or File.Write")
 	// ErrUnsupportedEncryptMechanism defined the error message on receive the blank slide name.
 	ErrSlideNameBlank = errors.New("the slide name can not be blank")
+	// ErrPresentationFileFormat defined the error message on receive an
+	// unsupported workbook file format.
+	ErrPresentationFileFormat = errors.New("unsupported presentation file format")
 )
 
 // ErrSlideNotExist defined an error of slide that does not exist.
