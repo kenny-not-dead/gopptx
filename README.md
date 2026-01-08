@@ -18,10 +18,39 @@ GoPPTX is a library written in pure Go providing a set of functions that allow y
 ```bash
 go get github.com/kenny-not-dead/gopptx
 ```
+### Create presentation
 
-### Reading spreadsheet
+The following constitutes the bare to create a presentation document.
 
-The following constitutes the bare to read a spreadsheet document.
+```go
+package main
+
+import (
+    "fmt"
+
+	"github.com/kenny-not-dead/gopptx"
+)
+
+func main() {
+	f := gopptx.NewFile()
+    defer func() {
+        if err := f.Close(); err != nil {
+            fmt.Println(err)
+        }
+    }()
+
+    err := f.SaveAs("presentation.pptx")
+	if err != nil {
+		fmt.Println(err.Error())
+
+		return
+	}
+}
+```
+
+### Reading presentation
+
+The following constitutes the bare to read a presentation document.
 
 ```go
 package main
@@ -51,11 +80,9 @@ func main() {
 			return
 		}
 
-		for _, shape := range shapes{
-				fmt.Println(shape.TextBody)
-
+		for _, shape := range shapes {
+			fmt.Println(shape.TextBody)
 		}
-
 	}
 }
 ```
