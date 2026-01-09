@@ -221,5 +221,5 @@ type complexTypeTextFont struct {
 	Typeface    string `xml:"typeface,attr"`
 	Panose      string `xml:"panose,attr,omitempty"`
 	PitchFamily string `xml:"pitchFamily,attr,omitempty"`
-	Charset     string `xml:"Charset,attr,omitempty"`
+	Charset     string `xml:"charset,attr,omitempty"`
 }

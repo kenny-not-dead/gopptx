@@ -53,6 +53,7 @@ const (
 	defaultXMLPathDocPropsApp      = "docProps/app.xml"
 	defaultXMLPathDocPropsCore     = "docProps/core.xml"
 	defaultXMLPathPresentation     = "ppt/presentation.xml"
+	defaultXMLPathPresProps        = "ppt/presProps.xml"
 	defaultXMLPathPresentationRels = "ppt/_rels/presentation.xml.rels"
 	defaultXMLPathRels             = "_rels/.rels"
 	defaultXMLPathSlide            = "ppt/slides/slide1.xml"
@@ -104,6 +105,9 @@ var (
 
 	//go:embed templates/presentation.xml
 	templatePresentation string
+
+	//go:embed templates/presProps.xml
+	templatePresProps string
 
 	//go:embed templates/presentation-rels.xml
 	templatePresentationRels string

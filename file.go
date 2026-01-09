@@ -39,6 +39,7 @@ func NewFile(opts ...Options) *File {
 	f.Pkg.Store(defaultXMLPathSlide, []byte(xml.Header+TemplateSlide))
 	f.Pkg.Store(defaultXMLPathSlideRels, []byte(xml.Header+TemplateSlideRels))
 	f.Pkg.Store(defaultXMLPathPresentation, []byte(xml.Header+templatePresentation))
+	f.Pkg.Store(defaultXMLPathPresProps, []byte(xml.Header+templatePresProps))
 	f.Pkg.Store(defaultXMLPathContentTypes, []byte(xml.Header+templateContentTypes))
 	f.SlideCount = 1
 	f.ContentTypes, _ = f.contentTypesReader()
@@ -224,29 +225,19 @@ func (f *File) writeToZip(zw ZipWriter) error {
 // setContentTypePartProjectExtensions provides a function to set the content
 // type for relationship parts and the main document part.
 func (f *File) setContentTypePartProjectExtensions(contentType string) error {
-	var ok bool
 	content, err := f.contentTypesReader()
 	if err != nil {
 		return err
 	}
 	content.mu.Lock()
 	defer content.mu.Unlock()
-	for _, v := range content.Defaults {
-		if v.Extension == "bin" {
-			ok = true
-		}
-	}
+
 	for idx, o := range content.Overrides {
 		if o.PartName == "/"+defaultXMLPathPresentation {
 			content.Overrides[idx].ContentType = contentType
 		}
 	}
-	if !ok {
-		content.Defaults = append(content.Defaults, contentTypeDefault{
-			Extension:   "bin",
-			ContentType: ContentTypeVBA,
-		})
-	}
+
 	return err
 }
 
