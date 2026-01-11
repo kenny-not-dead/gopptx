@@ -51,8 +51,8 @@ type pptxSlides struct {
 // pptxSlide defines a slide in this presentation. Slide data is stored in a
 // separate part.
 type pptxSlide struct {
-	ID      string `xml:"r:id,attr"`
-	SlideID string `xml:"id,attr"`
+	RelationshipID string `xml:"r:id,attr"`
+	SlideID        int    `xml:"id,attr"`
 }
 
 type slideSize struct {

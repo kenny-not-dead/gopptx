@@ -283,24 +283,22 @@ func (f *File) replaceNameSpaceBytes(path string, content []byte) []byte {
 	// if attrs, ok := f.xmlAttr.Load(path); ok {
 	// 	targetXmlns = []byte(genXMLNamespace(attrs.([]xml.Attr)))
 	// }
-	// return bytesReplace(contentMarshal, sourceXmlns, bytes.ReplaceAll(targetXmlns, []byte(" mc:Ignorable=\"r\""), []byte{}), -1)
+	// return bytesReplace(content, sourceXmlns, bytes.ReplaceAll(targetXmlns, []byte(" mc:Ignorable=\"r\""), []byte{}), -1)
 
-	if !(strings.HasPrefix(path, "ppt/slides/slide") && strings.HasSuffix(path, ".xml")) &&
-		path != "ppt/presentation.xml" {
-		return content
-	}
+	// if !(strings.HasPrefix(path, "ppt/slides/slide") && strings.HasSuffix(path, ".xml")) &&
+	// 	path != "ppt/presentation.xml" {
+	// 	return content
+	// }
 
-	// Для слайдов
-	if strings.HasPrefix(path, "ppt/slides/slide") {
-		xmlns := ` xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="p14" xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main"`
-		content = bytes.Replace(content, []byte("<p:sld>"), []byte("<p:sld"+xmlns+">"), 1)
-	}
+	// if strings.HasPrefix(path, "ppt/slides/slide") {
+	// 	xmlns := ` xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="p14" xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main"`
+	// 	content = bytes.Replace(content, []byte("<p:sld>"), []byte("<p:sld"+xmlns+">"), 1)
+	// }
 
-	// Для presentation.xml — аналогично
-	if path == "ppt/presentation.xml" {
-		xmlns := ` xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="p14" xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main"`
-		content = bytes.Replace(content, []byte("<p:presentation>"), []byte("<p:presentation"+xmlns+">"), 1)
-	}
+	// if path == "ppt/presentation.xml" {
+	// 	xmlns := ` xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="p14" xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main"`
+	// 	content = bytes.Replace(content, []byte("<p:presentation>"), []byte("<p:presentation"+xmlns+">"), 1)
+	// }
 
 	return content
 }

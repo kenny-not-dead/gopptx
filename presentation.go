@@ -10,8 +10,10 @@ package gopptx
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -24,7 +26,9 @@ func (f *File) presentationReader() (*pptxPresentation, error) {
 		f.Presentation = new(pptxPresentation)
 
 		if attrs, ok := f.xmlAttr.Load(wbPath); !ok {
+			fmt.Println(attrs)
 			d := f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readXML(wbPath))))
+			fmt.Println(d)
 			if attrs == nil {
 				attrs = []xml.Attr{}
 			}
@@ -68,4 +72,13 @@ func (f *File) getPresentationRelsPath() (path string) {
 	}
 	path = strings.TrimPrefix(filepath.Dir(wbPath)+"/_rels/"+filepath.Base(wbPath)+".rels", "/")
 	return
+}
+
+// setPresentation update presentation.
+func (f *File) setPresentation(sheetID, rid int) {
+	presentation, _ := f.presentationReader()
+	presentation.Slides.Slide = append(presentation.Slides.Slide, pptxSlide{
+		SlideID:        sheetID,
+		RelationshipID: "rId" + strconv.Itoa(rid),
+	})
 }
