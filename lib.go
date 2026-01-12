@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -282,4 +283,27 @@ func (f *File) readTemp(name string) (file *os.File, err error) {
 	}
 	file, err = os.Open(path.(string))
 	return
+}
+
+// TODO
+func (s *decodeSlideID) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	for _, attr := range start.Attr {
+		if attr.Name.Local == "id" {
+			switch attr.Name.Space {
+			case SourceRelationship.Value:
+				s.RelationshipID = attr.Value
+			case "":
+				val, err := strconv.Atoi(attr.Value)
+				if err != nil {
+					return err
+				}
+
+				s.SlideID = val
+			default:
+				return unexpectedNamespace(attr.Name.Space)
+			}
+		}
+	}
+
+	return d.Skip()
 }

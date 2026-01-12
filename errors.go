@@ -33,12 +33,12 @@ var (
 
 // ErrSlideNotExist defined an error of slide that does not exist.
 type ErrSlideNotExist struct {
-	SlideName string
+	SlideID int
 }
 
 // Error returns the error message on receiving the non existing slide name.
 func (err ErrSlideNotExist) Error() string {
-	return fmt.Sprintf("slide %s does not exist", err.SlideName)
+	return fmt.Sprintf("slide %d does not exist", err.SlideID)
 }
 
 // newUnzipSizeLimitError defined the error message on unzip size exceeds the
@@ -46,3 +46,9 @@ func (err ErrSlideNotExist) Error() string {
 func newUnzipSizeLimitError(unzipSizeLimit int64) error {
 	return fmt.Errorf("unzip size exceeds the %d bytes limit", unzipSizeLimit)
 }
+
+// TODO
+func unexpectedNamespace(space string) error {
+	return fmt.Errorf("Unexpected namespace: %s", space)
+}
+

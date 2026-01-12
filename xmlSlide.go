@@ -21,7 +21,7 @@ type Slide struct {
 }
 
 type SlideData struct {
-	ShapeTree ShapeTree `xml:"p:spTree"`
+	ShapeTree decodeShapeTree `xml:"p:spTree"`
 }
 
 type ShapeTree struct {
@@ -36,15 +36,6 @@ type NonVisualGroupShapeProperties struct {
 	NonVisualProperties                 *NonVisualProperties                 `xml:"p:nvPr"`
 }
 
-type CommonNonVisualProperties struct {
-	ID   int    `xml:"id,attr"`
-	Name string `xml:"name,attr"`
-}
-
-type CommonNonVisualGroupShapeProperties struct{}
-
-type NonVisualProperties struct{}
-
 type GroupShapeProperties struct {
 	Xfrm *Xfrm `xml:"a:xfrm"`
 }
@@ -54,16 +45,6 @@ type Xfrm struct {
 	Extents      *Extents `xml:"a:ext"`
 	ChildOffset  *Offset  `xml:"a:chOff"`
 	ChildExtents *Extents `xml:"a:chExt"`
-}
-
-type Offset struct {
-	X int `xml:"x,attr"`
-	Y int `xml:"y,attr"`
-}
-
-type Extents struct {
-	CX int `xml:"cx,attr"`
-	CY int `xml:"cy,attr"`
 }
 
 type Shape struct {
@@ -78,11 +59,6 @@ type NonVisualShapeProperties struct {
 	NonVisualProperties            *NonVisualProperties            `xml:"p:nvPr"`
 }
 
-type CommonNonVisualShapeProperties struct {
-	TxBox      *bool `xml:"txBox,attr,omitempty"`
-	ShapeLocks *int  `xml:"spLocks,attr,omitempty"`
-}
-
 type ShapeProperties struct {
 	Xfrm           *Xfrm           `xml:"a:xfrm"`
 	PresetGeometry *PresetGeometry `xml:"a:prstGeom,omitempty"`
@@ -95,11 +71,6 @@ type PresetGeometry struct {
 	AdjustValueList *any   `xml:"a:avLst"`
 }
 
-type AdjustValue struct {
-	Name    string `xml:"name,attr"`
-	Formula string `xml:"fmla,attr"`
-}
-
 type Line struct {
 	Width  int  `xml:"w,attr,omitempty"`
 	NoFill *any `xml:"a:noFill,omitempty"`
@@ -108,6 +79,110 @@ type Line struct {
 type TextBody struct {
 	BodyProperties *BodyProperties `xml:"a:bodyPr"`
 	Paragraph      []Paragraph     `xml:"a:p"`
+}
+
+type Paragraph struct {
+	ParagraphProperties       *ParagraphProperties `xml:"a:pPr,omitempty"`
+	Runs                      []Runs               `xml:"r"`
+	EndParagraphRunProperties *Runs                `xml:"a:endParaRPr,omitempty"`
+}
+
+type decodeSlide struct {
+	mu                     sync.Mutex
+	XMLName                xml.Name          `xml:"sld"`
+	CommonSlideData        decodeSlideData   `xml:"cSld"`
+	AlternateContent       *alternateContent `xml:"mc:AlternateContent"`
+	DecodeAlternateContent *innerXML         `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
+}
+
+type decodeSlideData struct {
+	ShapeTree decodeShapeTree `xml:"spTree"`
+}
+
+type decodeShapeTree struct {
+	NonVisualGroupShapeProperties *decodeNonVisualGroupShapeProperties `xml:"nvGrpSpPr,omitempty"`
+	GroupShapeProperties          *decodeGroupShapeProperties          `xml:"grpSpPr,omitempty"`
+	Shape                         []decodeShape                        `xml:"sp"`
+}
+
+type decodeNonVisualGroupShapeProperties struct {
+	CommonNonVisualProperties           *CommonNonVisualProperties           `xml:"cNvPr"`
+	CommonNonVisualGroupShapeProperties *CommonNonVisualGroupShapeProperties `xml:"cNvGrpSpPr"`
+	NonVisualProperties                 *NonVisualProperties                 `xml:"nvPr"`
+}
+
+type CommonNonVisualProperties struct {
+	ID   int    `xml:"id,attr"`
+	Name string `xml:"name,attr"`
+}
+
+type CommonNonVisualGroupShapeProperties struct{}
+
+type NonVisualProperties struct{}
+
+type decodeGroupShapeProperties struct {
+	Xfrm *decodeXfrm `xml:"xfrm"`
+}
+
+type decodeXfrm struct {
+	Offset       *Offset  `xml:"off"`
+	Extents      *Extents `xml:"ext"`
+	ChildOffset  *Offset  `xml:"chOff"`
+	ChildExtents *Extents `xml:"chExt"`
+}
+
+type Offset struct {
+	X int `xml:"x,attr"`
+	Y int `xml:"y,attr"`
+}
+
+type Extents struct {
+	CX int `xml:"cx,attr"`
+	CY int `xml:"cy,attr"`
+}
+
+type decodeShape struct {
+	NonVisualShapeProperties *decodeNonVisualShapeProperties `xml:"nvSpPr"`
+	ShapeProperties          *decodeShapeProperties          `xml:"spPr"`
+	TextBody                 *decodeTextBody                 `xml:"txBody,omitempty"`
+}
+
+type decodeNonVisualShapeProperties struct {
+	CommonNonVisualProperties      *CommonNonVisualProperties      `xml:"cNvPr"`
+	CommonNonVisualShapeProperties *CommonNonVisualShapeProperties `xml:"cNvSpPr"`
+	NonVisualProperties            *NonVisualProperties            `xml:"nvPr"`
+}
+
+type CommonNonVisualShapeProperties struct {
+	TxBox      *bool `xml:"txBox,attr,omitempty"`
+	ShapeLocks *int  `xml:"spLocks,attr,omitempty"`
+}
+
+type decodeShapeProperties struct {
+	Xfrm           *decodeXfrm           `xml:"xfrm"`
+	PresetGeometry *decodePresetGeometry `xml:"prstGeom,omitempty"`
+	NoFill         *any                  `xml:"noFill,omitempty"`
+	Ln             *decodeLine           `xml:"ln,omitempty"`
+}
+
+type decodePresetGeometry struct {
+	Preset          string `xml:"prst,attr"`
+	AdjustValueList *any   `xml:"avLst"`
+}
+
+type AdjustValue struct {
+	Name    string `xml:"name,attr"`
+	Formula string `xml:"fmla,attr"`
+}
+
+type decodeLine struct {
+	Width  int  `xml:"w,attr,omitempty"`
+	NoFill *any `xml:"noFill,omitempty"`
+}
+
+type decodeTextBody struct {
+	BodyProperties *BodyProperties   `xml:"bodyPr"`
+	Paragraph      []decodeParagraph `xml:"p"`
 }
 
 type BodyProperties struct {
@@ -119,10 +194,10 @@ type BodyProperties struct {
 	NoAutofit *any   `xml:"noAutofit,omitempty"`
 }
 
-type Paragraph struct {
-	ParagraphProperties       *ParagraphProperties `xml:"a:pPr,omitempty"`
+type decodeParagraph struct {
+	ParagraphProperties       *ParagraphProperties `xml:"pPr,omitempty"`
 	Runs                      []Runs               `xml:"r"`
-	EndParagraphRunProperties *Runs                `xml:"a:endParaRPr,omitempty"`
+	EndParagraphRunProperties *Runs                `xml:"endParaRPr,omitempty"`
 }
 
 type ParagraphProperties struct {

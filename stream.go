@@ -18,7 +18,7 @@ type StreamWriter struct {
 	SlideName    string
 	SlideID      int
 	slideWritten bool
-	slide        *Slide
+	slide        *decodeSlide
 	rawData      bufferedWriter
 }
 

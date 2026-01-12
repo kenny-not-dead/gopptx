@@ -10,21 +10,25 @@ package gopptx
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 // presentationReader provides a function to get the pointer to the presentation.xml
 // structure after deserialization.
-func (f *File) presentationReader() (*pptxPresentation, error) {
+func (f *File) presentationReader() (*decodePresentation, error) {
 	var err error
 	if f.Presentation == nil {
 		wbPath := f.getPresentationPath()
-		f.Presentation = new(pptxPresentation)
+		f.Presentation = new(decodePresentation)
 
 		if attrs, ok := f.xmlAttr.Load(wbPath); !ok {
+			fmt.Println(attrs)
 			d := f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readXML(wbPath))))
+			fmt.Println(d)
 			if attrs == nil {
 				attrs = []xml.Attr{}
 			}
@@ -68,4 +72,13 @@ func (f *File) getPresentationRelsPath() (path string) {
 	}
 	path = strings.TrimPrefix(filepath.Dir(wbPath)+"/_rels/"+filepath.Base(wbPath)+".rels", "/")
 	return
+}
+
+// setPresentation update presentation.
+func (f *File) setPresentation(sheetID, rid int) {
+	presentation, _ := f.presentationReader()
+	presentation.Slides.Slide = append(presentation.Slides.Slide, decodeSlideID{
+		SlideID:        sheetID,
+		RelationshipID: "rId" + strconv.Itoa(rid),
+	})
 }

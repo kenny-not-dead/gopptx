@@ -34,18 +34,30 @@ const (
 const (
 	ContentTypePresentationML                     = "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
 	ContentTypeSlideML                            = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
+	ContentTypeRelationships                      = "application/vnd.openxmlformats-package.relationships+xml"
 	ContentTypeVBA                                = "application/vnd.ms-office.vbaProject"
 	NameSpaceDrawingMLMain                        = "http://schemas.openxmlformats.org/drawingml/2006/main"
 	NameSpaceExtendedProperties                   = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
 	NameSpaceXML                                  = "http://www.w3.org/XML/1998/namespace"
 	SourceRelationshipCustomProperties            = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties"
 	SourceRelationshipOfficeDocument              = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+	SourceRelationshipSlide                       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
 	StrictNameSpaceDocumentPropertiesVariantTypes = "http://purl.oclc.org/ooxml/officeDocument/docPropsVTypes"
 	StrictNameSpaceDrawingMLMain                  = "http://purl.oclc.org/ooxml/drawingml/main"
 	StrictNameSpaceExtendedProperties             = "http://purl.oclc.org/ooxml/officeDocument/extendedProperties"
 
 	NameSpacePresentationMLMain       = "http://schemas.openxmlformats.org/presentationml/2006/main"
 	StrictNameSpacePresentationMLMain = "http://purl.oclc.org/ooxml/presentationml/main"
+)
+
+const (
+	defaultXMLPathSlide           = "ppt/slides/slide1.xml"
+	defaultXMLPathSlideRels       = "ppt/slides/_rels/slide1.xml.rels"
+	defaultXMLPathSlideLayout     = "ppt/slideLayouts/slideLayout1.xml"
+	defaultXMLPathSlideLayoutRels = "ppt/slideLayouts/_rels/slideLayout1.xml.rels"
+	defaultXMLPathSlideMaster     = "ppt/slideMasters/slideMaster1.xml"
+	defaultXMLPathSlideMasterRels = "ppt/slideMasters/_rels/slideMaster1.xml.rels"
+	defaultXMLPathTheme           = "ppt/theme/theme1.xml"
 )
 
 const (
@@ -56,19 +68,13 @@ const (
 	defaultXMLPathPresProps        = "ppt/presProps.xml"
 	defaultXMLPathPresentationRels = "ppt/_rels/presentation.xml.rels"
 	defaultXMLPathRels             = "_rels/.rels"
-	defaultXMLPathSlide            = "ppt/slides/slide1.xml"
-	defaultXMLPathSlideRels        = "ppt/slides/_rels/slide1.xml.rels"
-	defaultXMLPathSlideLayout      = "ppt/slideLayouts/slideLayout1.xml"
-	defaultXMLPathSlideLayoutRels  = "ppt/slideLayouts/_rels/slideLayout1.xml.rels"
-	defaultXMLPathSlideMaster      = "ppt/slideMasters/slideMaster1.xml"
-	defaultXMLPathSlideMasterRels  = "ppt/slideMasters/_rels/slideMaster1.xml.rels"
-	defaultXMLPathTheme            = "ppt/theme/theme1.xml"
 )
 
 const (
 	defaultXMLThemeID       = "rId1"
 	defaultXMLMasterSlideID = "rId2"
-	defaultXMLSlideID       = "rId3"
+	defaultXMLSlideRID      = "rId3"
+	defaultXMLSlideID       = 256
 )
 
 const (

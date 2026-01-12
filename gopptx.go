@@ -15,6 +15,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 
 	"golang.org/x/net/html/charset"
@@ -27,14 +29,14 @@ type File struct {
 	zip64Entries  []string
 	options       *Options
 	tempFiles     sync.Map
-	slideMap      map[string]string
+	slideMap      map[int]string
 	streams       map[string]*StreamWriter
 	xmlAttr       sync.Map
 	CharsetReader func(charset string, input io.Reader) (rdr io.Reader, err error)
 	ContentTypes  *contentTypes
 	Path          string
 	Pkg           sync.Map
-	Presentation  *pptxPresentation
+	Presentation  *decodePresentation
 	Relationships sync.Map
 	Slide         sync.Map
 	SlideCount    int
@@ -89,7 +91,7 @@ func newFile() *File {
 		options:       &Options{UnzipSizeLimit: UnzipSizeLimit, UnzipXMLSizeLimit: StreamChunkSize},
 		xmlAttr:       sync.Map{},
 		checked:       sync.Map{},
-		slideMap:      make(map[string]string),
+		slideMap:      make(map[int]string),
 		Slide:         sync.Map{},
 		tempFiles:     sync.Map{},
 		CharsetReader: charset.NewReaderLabel,
@@ -144,9 +146,12 @@ func OpenReader(r io.Reader, opts ...Options) (*File, error) {
 	for k, v := range file {
 		f.Pkg.Store(k, v)
 	}
-	if f.slideMap, err = f.getSlideMap(); err != nil {
+
+	f.slideMap, err = f.getSlideMap()
+	if err != nil {
 		return f, err
 	}
+
 	f.Theme, err = f.themeReader()
 	return f, err
 }
@@ -169,24 +174,22 @@ func (f *File) xmlNewDecoder(rdr io.Reader) (ret *xml.Decoder) {
 }
 
 // slideReader provides a function to get the parsed Slide by slide name.
-func (f *File) slideReader(slideName string) (slide *Slide, err error) {
+func (f *File) slideReader(slideID int) (slide *decodeSlide, err error) {
 	var (
 		path string
 		ok   bool
 	)
-	if err = checkSlideName(slideName); err != nil {
-		return
-	}
-	if path, ok = f.getSlideXMLPath(slideName); !ok {
-		err = ErrSlideNotExist{slideName}
+
+	if path, ok = f.getSlideXMLPath(slideID); !ok {
+		err = ErrSlideNotExist{slideID}
 		return
 	}
 	if s, ok := f.Slide.Load(path); ok && s != nil {
-		slide = s.(*Slide)
+		slide = s.(*decodeSlide)
 		return
 	}
 
-	slide = new(Slide)
+	slide = new(decodeSlide)
 	if attrs, ok := f.xmlAttr.Load(path); !ok {
 		d := f.xmlNewDecoder(bytes.NewReader(f.readBytes(path)))
 		if attrs == nil {
@@ -215,4 +218,43 @@ func checkSlideName(name string) error {
 	}
 
 	return nil
+}
+
+// addRels provides a function to add relationships by given XML path,
+// relationship type, target and target mode.
+func (f *File) addRels(relPath, relType, target, targetMode string) int {
+	uniqPart := map[string]string{
+		SourceRelationshipCustomProperties: "/docProps/custom.xml",
+	}
+	rels, _ := f.relsReader(relPath)
+	if rels == nil {
+		rels = &relationships{}
+	}
+	rels.mu.Lock()
+	defer rels.mu.Unlock()
+	var rID int
+	for idx, rel := range rels.Relationships {
+		ID, _ := strconv.Atoi(strings.TrimPrefix(rel.ID, "rId"))
+		if ID > rID {
+			rID = ID
+		}
+		if relType == rel.Type {
+			if partName, ok := uniqPart[rel.Type]; ok {
+				rels.Relationships[idx].Target = partName
+				return rID
+			}
+		}
+	}
+	rID++
+	var ID bytes.Buffer
+	ID.WriteString("rId")
+	ID.WriteString(strconv.Itoa(rID))
+	rels.Relationships = append(rels.Relationships, relationship{
+		ID:         ID.String(),
+		Type:       relType,
+		Target:     target,
+		TargetMode: targetMode,
+	})
+	f.Relationships.Store(relPath, rels)
+	return rID
 }

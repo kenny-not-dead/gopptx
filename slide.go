@@ -9,11 +9,65 @@ package gopptx
 
 import (
 	"bytes"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
+
+// NewSlide provides the function to create a new slide and
+// returns the index of the slide in the presentation after it appended.
+func (f *File) NewSlide() (int, error) {
+	presentation, err := f.presentationReader()
+	if err != nil {
+		return -1, err
+	}
+
+	f.SlideCount++
+
+	slideID := defaultXMLSlideID
+	for _, s := range presentation.Slides.Slide {
+		if s.SlideID >= slideID {
+			slideID = s.SlideID + 1
+		}
+	}
+
+	nextFileIndex := len(presentation.Slides.Slide) + 1
+	fileName := "slide" + strconv.Itoa(nextFileIndex)
+
+	// Update [Content_Types].xml
+	_ = f.setContentTypes("/ppt/slides/_rels/"+fileName+".xml.rels", ContentTypeRelationships)
+	_ = f.setContentTypes("/ppt/slides/slide"+fileName+".xml", ContentTypeSlideML)
+
+	// Update presentation.xml.rels
+	rID := f.addRels(f.getPresentationRelsPath(), SourceRelationshipSlide, fmt.Sprintf("worksheets/sheet%d.xml", slideID), "")
+
+	// Create new sheet /ppt/slides/sheet%d.xml
+	f.setSlide(slideID, rID)
+
+	// Update presentation.xml
+	f.setPresentation(slideID, rID)
+
+	return slideID, nil
+}
+
+// setContentTypes provides a function to read and update property of contents
+// type of the spreadsheet.
+func (f *File) setContentTypes(partName, contentType string) error {
+	content, err := f.contentTypesReader()
+	if err != nil {
+		return err
+	}
+	content.mu.Lock()
+	defer content.mu.Unlock()
+	content.Overrides = append(content.Overrides, contentTypeOverride{
+		PartName:    partName,
+		ContentType: contentType,
+	})
+	return err
+}
 
 // contentTypesReader provides a function to get the pointer to the
 // [Content_Types].xml structure after deserialization.
@@ -30,15 +84,22 @@ func (f *File) contentTypesReader() (*contentTypes, error) {
 	return f.ContentTypes, nil
 }
 
+// setSlide provides a function to update slide property by given index.
+func (f *File) setSlide(index int, id int) {
+	slideXMLPath := "ppt/slides/slide" + strconv.Itoa(index) + ".xml"
+	f.slideMap[id] = slideXMLPath
+	f.Slide.Store(slideXMLPath, []byte(xml.Header+TemplateSlide))
+	f.xmlAttr.Store(slideXMLPath, []xml.Attr{NameSpacePresentationML}) // TODO: check attr
+}
+
 // getSlideMap provides a function to get slide name and XML file path map
 // of the presentation.
-func (f *File) getSlideMap() (map[string]string, error) {
-	maps := map[string]string{}
-	wb, err := f.presentationReader()
+func (f *File) getSlideMap() (map[int]string, error) {
+	maps := map[int]string{}
+	presentation, err := f.presentationReader()
 	if err != nil {
 		return nil, err
 	}
-
 	rels, err := f.relsReader(f.getPresentationRelsPath())
 	if err != nil {
 		return nil, err
@@ -46,15 +107,15 @@ func (f *File) getSlideMap() (map[string]string, error) {
 	if rels == nil {
 		return maps, nil
 	}
-	for _, slide := range wb.Slides.Slide {
+	for _, slide := range presentation.Slides.Slide {
 		for _, rel := range rels.Relationships {
-			if rel.ID == slide.ID {
+			if rel.ID == slide.RelationshipID {
 				slideXMLPath := f.getSlidePath(rel.Target)
 				if _, ok := f.Pkg.Load(slideXMLPath); ok {
-					maps[slide.ID] = slideXMLPath
+					maps[slide.SlideID] = slideXMLPath
 				}
 				if _, ok := f.tempFiles.Load(slideXMLPath); ok {
-					maps[slide.ID] = slideXMLPath
+					maps[slide.SlideID] = slideXMLPath
 				}
 			}
 		}
@@ -96,24 +157,15 @@ func (f *File) getSlidePath(relTarget string) (path string) {
 	return path
 }
 
-// getSlideXMLPath provides a function to get XML file path by given slide name.
-func (f *File) getSlideXMLPath(slide string) (string, bool) {
-	var (
-		name string
-		ok   bool
-	)
-	for slideName, filePath := range f.slideMap {
-		if strings.EqualFold(slideName, slide) {
-			name, ok = filePath, true
-			break
-		}
-	}
-	return name, ok
+// getSlideXMLPath provides a function to get XML file path by given slide id.
+func (f *File) getSlideXMLPath(id int) (string, bool) {
+	path, ok := f.slideMap[id]
+	return path, ok
 }
 
 // GetShapes provides a function to get shapes by given slide id.
-func (f *File) GetShapes(slideID string) ([]Shape, error) {
-	var shapes []Shape
+func (f *File) GetShapes(slideID int) ([]decodeShape, error) {
+	var shapes []decodeShape
 	ws, err := f.slideReader(slideID)
 	if err != nil {
 		return shapes, err
@@ -123,12 +175,12 @@ func (f *File) GetShapes(slideID string) ([]Shape, error) {
 }
 
 // getShapes returns shapes of the slide.
-func (ws *Slide) getShapes() []Shape {
+func (ws *decodeSlide) getShapes() []decodeShape {
 	return ws.CommonSlideData.ShapeTree.Shape
 }
 
 // GetGroupShapeProperties provides a function to get group shape properties by given slide id.
-func (f *File) GetGroupShapeProperties(slideID string) (*GroupShapeProperties, error) {
+func (f *File) GetGroupShapeProperties(slideID int) (*decodeGroupShapeProperties, error) {
 	s, err := f.slideReader(slideID)
 	if err != nil {
 		return nil, err
@@ -138,12 +190,12 @@ func (f *File) GetGroupShapeProperties(slideID string) (*GroupShapeProperties, e
 }
 
 // getGroupShapeProperties returns group shape properties of the slide.
-func (ws *Slide) getGroupShapeProperties() *GroupShapeProperties {
+func (ws *decodeSlide) getGroupShapeProperties() *decodeGroupShapeProperties {
 	return ws.CommonSlideData.ShapeTree.GroupShapeProperties
 }
 
 // GetNonVisualGroupShapeProperties provides a function to get non visual group shape properties by given slide id.
-func (f *File) GetNonVisualGroupShapeProperties(slideID string) (*NonVisualGroupShapeProperties, error) {
+func (f *File) GetNonVisualGroupShapeProperties(slideID int) (*decodeNonVisualGroupShapeProperties, error) {
 	s, err := f.slideReader(slideID)
 	if err != nil {
 		return nil, err
@@ -153,6 +205,6 @@ func (f *File) GetNonVisualGroupShapeProperties(slideID string) (*NonVisualGroup
 }
 
 // NonVisualGroupShapeProperties returns non visual group shape properties of the slide.
-func (ws *Slide) getNonVisualGroupShapeProperties() *NonVisualGroupShapeProperties {
+func (ws *decodeSlide) getNonVisualGroupShapeProperties() *decodeNonVisualGroupShapeProperties {
 	return ws.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties
 }
