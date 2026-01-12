@@ -46,3 +46,9 @@ func (err ErrSlideNotExist) Error() string {
 func newUnzipSizeLimitError(unzipSizeLimit int64) error {
 	return fmt.Errorf("unzip size exceeds the %d bytes limit", unzipSizeLimit)
 }
+
+// TODO
+func unexpectedNamespace(space string) error {
+	return fmt.Errorf("Unexpected namespace: %s", space)
+}
+

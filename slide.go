@@ -164,8 +164,8 @@ func (f *File) getSlideXMLPath(id int) (string, bool) {
 }
 
 // GetShapes provides a function to get shapes by given slide id.
-func (f *File) GetShapes(slideID int) ([]Shape, error) {
-	var shapes []Shape
+func (f *File) GetShapes(slideID int) ([]decodeShape, error) {
+	var shapes []decodeShape
 	ws, err := f.slideReader(slideID)
 	if err != nil {
 		return shapes, err
@@ -175,12 +175,12 @@ func (f *File) GetShapes(slideID int) ([]Shape, error) {
 }
 
 // getShapes returns shapes of the slide.
-func (ws *Slide) getShapes() []Shape {
+func (ws *decodeSlide) getShapes() []decodeShape {
 	return ws.CommonSlideData.ShapeTree.Shape
 }
 
 // GetGroupShapeProperties provides a function to get group shape properties by given slide id.
-func (f *File) GetGroupShapeProperties(slideID int) (*GroupShapeProperties, error) {
+func (f *File) GetGroupShapeProperties(slideID int) (*decodeGroupShapeProperties, error) {
 	s, err := f.slideReader(slideID)
 	if err != nil {
 		return nil, err
@@ -190,12 +190,12 @@ func (f *File) GetGroupShapeProperties(slideID int) (*GroupShapeProperties, erro
 }
 
 // getGroupShapeProperties returns group shape properties of the slide.
-func (ws *Slide) getGroupShapeProperties() *GroupShapeProperties {
+func (ws *decodeSlide) getGroupShapeProperties() *decodeGroupShapeProperties {
 	return ws.CommonSlideData.ShapeTree.GroupShapeProperties
 }
 
 // GetNonVisualGroupShapeProperties provides a function to get non visual group shape properties by given slide id.
-func (f *File) GetNonVisualGroupShapeProperties(slideID int) (*NonVisualGroupShapeProperties, error) {
+func (f *File) GetNonVisualGroupShapeProperties(slideID int) (*decodeNonVisualGroupShapeProperties, error) {
 	s, err := f.slideReader(slideID)
 	if err != nil {
 		return nil, err
@@ -205,6 +205,6 @@ func (f *File) GetNonVisualGroupShapeProperties(slideID int) (*NonVisualGroupSha
 }
 
 // NonVisualGroupShapeProperties returns non visual group shape properties of the slide.
-func (ws *Slide) getNonVisualGroupShapeProperties() *NonVisualGroupShapeProperties {
+func (ws *decodeSlide) getNonVisualGroupShapeProperties() *decodeNonVisualGroupShapeProperties {
 	return ws.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties
 }

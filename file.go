@@ -405,7 +405,7 @@ func (f *File) slideWriter() {
 	)
 	f.Slide.Range(func(p, ws interface{}) bool {
 		if ws != nil {
-			slide := ws.(*Slide)
+			slide := ws.(*decodeSlide)
 
 			// f.addNameSpaces(p.(string), SourceRelationship)
 

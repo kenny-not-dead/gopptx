@@ -44,12 +44,12 @@ type masterSlideList struct {
 	MasterSlide slideID `xml:"p:sldMasterId"`
 }
 
+// TODO
 type slideList struct {
 	Slide []slideID `xml:"p:sldId"`
 }
 
-// decodeSlideID defines a slide in this presentation. Slide data is stored in a
-// separate part.
+// TODO
 type slideID struct {
 	RelationshipID string `xml:"r:id,attr"`
 	SlideID        int    `xml:"id,attr"`

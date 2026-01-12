@@ -285,14 +285,12 @@ func (f *File) readTemp(name string) (file *os.File, err error) {
 	return
 }
 
+// TODO
 func (s *decodeSlideID) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
-	s.SlideID = 0
-	s.RelationshipID = ""
-
 	for _, attr := range start.Attr {
 		if attr.Name.Local == "id" {
 			switch attr.Name.Space {
-			case "http://schemas.openxmlformats.org/officeDocument/2006/relationships":
+			case SourceRelationship.Value:
 				s.RelationshipID = attr.Value
 			case "":
 				val, err := strconv.Atoi(attr.Value)
@@ -302,7 +300,7 @@ func (s *decodeSlideID) UnmarshalXML(d *xml.Decoder, start xml.StartElement) err
 
 				s.SlideID = val
 			default:
-				fmt.Printf("❓ Unexpected namespace for 'id': %q\n", attr.Name.Space)
+				return unexpectedNamespace(attr.Name.Space)
 			}
 		}
 	}

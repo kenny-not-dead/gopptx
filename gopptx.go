@@ -174,7 +174,7 @@ func (f *File) xmlNewDecoder(rdr io.Reader) (ret *xml.Decoder) {
 }
 
 // slideReader provides a function to get the parsed Slide by slide name.
-func (f *File) slideReader(slideID int) (slide *Slide, err error) {
+func (f *File) slideReader(slideID int) (slide *decodeSlide, err error) {
 	var (
 		path string
 		ok   bool
@@ -185,11 +185,11 @@ func (f *File) slideReader(slideID int) (slide *Slide, err error) {
 		return
 	}
 	if s, ok := f.Slide.Load(path); ok && s != nil {
-		slide = s.(*Slide)
+		slide = s.(*decodeSlide)
 		return
 	}
 
-	slide = new(Slide)
+	slide = new(decodeSlide)
 	if attrs, ok := f.xmlAttr.Load(path); !ok {
 		d := f.xmlNewDecoder(bytes.NewReader(f.readBytes(path)))
 		if attrs == nil {
