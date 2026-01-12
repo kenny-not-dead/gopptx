@@ -19,11 +19,11 @@ import (
 
 // presentationReader provides a function to get the pointer to the presentation.xml
 // structure after deserialization.
-func (f *File) presentationReader() (*pptxPresentation, error) {
+func (f *File) presentationReader() (*decodePresentation, error) {
 	var err error
 	if f.Presentation == nil {
 		wbPath := f.getPresentationPath()
-		f.Presentation = new(pptxPresentation)
+		f.Presentation = new(decodePresentation)
 
 		if attrs, ok := f.xmlAttr.Load(wbPath); !ok {
 			fmt.Println(attrs)
@@ -77,7 +77,7 @@ func (f *File) getPresentationRelsPath() (path string) {
 // setPresentation update presentation.
 func (f *File) setPresentation(sheetID, rid int) {
 	presentation, _ := f.presentationReader()
-	presentation.Slides.Slide = append(presentation.Slides.Slide, pptxSlide{
+	presentation.Slides.Slide = append(presentation.Slides.Slide, decodeSlideID{
 		SlideID:        sheetID,
 		RelationshipID: "rId" + strconv.Itoa(rid),
 	})

@@ -28,30 +28,57 @@ type relationship struct {
 	TargetMode string `xml:",attr,omitempty"`
 }
 
-// pptxPresentation contains elements and attributes that encompass the data
-// content of the presentation.
-type pptxPresentation struct {
+// TODO
+type presentation struct {
 	XMLName                xml.Name          `xml:"http://schemas.openxmlformats.org/presentationml/2006/main p:presentation"`
 	AlternateContent       *alternateContent `xml:"mc:AlternateContent"`
 	DecodeAlternateContent *innerXML         `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
-	MasterSlide            masterSlide       `xml:"p:sldMasterIdLst"`
-	Slides                 *pptxSlides       `xml:"p:sldIdLst,omitempty"`
+	MasterSlide            masterSlideList   `xml:"p:sldMasterIdLst"`
+	Slides                 *slideList        `xml:"p:sldIdLst,omitempty"`
 	SlideSize              *slideSize        `xml:"p:sldSz,omitempty"`
 	NotesSize              *slideSize        `xml:"p:notesSz,omitempty"`
 }
 
-type masterSlide struct {
-	MasterSlide pptxSlide `xml:"p:sldMasterId"`
+// TODO
+type masterSlideList struct {
+	MasterSlide slideID `xml:"p:sldMasterId"`
 }
 
-type pptxSlides struct {
-	Slide []pptxSlide `xml:"p:sldId"`
+type slideList struct {
+	Slide []slideID `xml:"p:sldId"`
 }
 
-// pptxSlide defines a slide in this presentation. Slide data is stored in a
+// decodeSlideID defines a slide in this presentation. Slide data is stored in a
 // separate part.
-type pptxSlide struct {
+type slideID struct {
 	RelationshipID string `xml:"r:id,attr"`
+	SlideID        int    `xml:"id,attr"`
+}
+
+// decodePresentation contains elements and attributes that encompass the data
+// content of the presentation.
+type decodePresentation struct {
+	XMLName                xml.Name              `xml:"http://schemas.openxmlformats.org/presentationml/2006/main presentation"`
+	AlternateContent       *alternateContent     `xml:"mc:AlternateContent"`
+	DecodeAlternateContent *innerXML             `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
+	MasterSlide            decodeMasterSlideList `xml:"sldMasterIdLst"`
+	Slides                 *decodeSlideList      `xml:"sldIdLst,omitempty"`
+	SlideSize              *slideSize            `xml:"sldSz,omitempty"`
+	NotesSize              *slideSize            `xml:"notesSz,omitempty"`
+}
+
+type decodeMasterSlideList struct {
+	MasterSlide decodeSlideID `xml:"sldMasterId"`
+}
+
+type decodeSlideList struct {
+	Slide []decodeSlideID `xml:"sldId"`
+}
+
+// decodeSlideID defines a slide in this presentation. Slide data is stored in a
+// separate part.
+type decodeSlideID struct {
+	RelationshipID string `xml:"http://schemas.openxmlformats.org/officeDocument/2006/relationships id,attr"`
 	SlideID        int    `xml:"id,attr"`
 }
 

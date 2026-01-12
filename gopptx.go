@@ -36,7 +36,7 @@ type File struct {
 	ContentTypes  *contentTypes
 	Path          string
 	Pkg           sync.Map
-	Presentation  *pptxPresentation
+	Presentation  *decodePresentation
 	Relationships sync.Map
 	Slide         sync.Map
 	SlideCount    int
