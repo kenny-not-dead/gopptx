@@ -154,7 +154,7 @@ func (f *File) WriteToBuffer() (*bytes.Buffer, error) {
 // writeToZip provides a function to write to ZipWriter.
 func (f *File) writeToZip(zw ZipWriter) error {
 	f.contentTypesWriter()
-	// f.presentationWriter()
+	f.presentationWriter()
 	// TODO: MasterWritter
 	// TODO: MasterLayoutWritter
 	f.slideWriter() // TODO: check wrire slide data
@@ -398,27 +398,125 @@ func (f *File) relsWriter() {
 // slideWriter provides a function to save xl/worksheets/sheet%d.xml after
 // serialize structure.
 func (f *File) slideWriter() {
+	newGroupShapeProperties := func(c *decodeGroupShapeProperties) *GroupShapeProperties {
+		return &GroupShapeProperties{
+			Xfrm: &Xfrm{
+				Offset:       c.Xfrm.Offset,
+				Extents:      c.Xfrm.Extents,
+				ChildOffset:  c.Xfrm.ChildOffset,
+				ChildExtents: c.Xfrm.ChildExtents,
+			},
+		}
+	}
+
+	newXfrm := func(dx *decodeXfrm) *Xfrm {
+		if dx == nil {
+			return nil
+		}
+		return &Xfrm{
+			Offset:       dx.Offset,
+			Extents:      dx.Extents,
+			ChildOffset:  dx.ChildOffset,
+			ChildExtents: dx.ChildExtents,
+		}
+	}
+
+	newPresetGeometry := func(dpg *decodePresetGeometry) *PresetGeometry {
+		if dpg == nil {
+			return nil
+		}
+		return &PresetGeometry{
+			Preset:          dpg.Preset,
+			AdjustValueList: dpg.AdjustValueList,
+		}
+	}
+
+	newLine := func(dl *decodeLine) *Line {
+		if dl == nil {
+			return nil
+		}
+		return &Line{
+			Width:  dl.Width,
+			NoFill: dl.NoFill,
+		}
+	}
+
+	newTextBody := func(dt *decodeTextBody) *TextBody {
+		if dt == nil {
+			return nil
+		}
+
+		paragraphs := make([]Paragraph, len(dt.Paragraph))
+		for i, p := range dt.Paragraph {
+			paragraphs[i] = Paragraph{
+				ParagraphProperties:       p.ParagraphProperties,
+				Runs:                      p.Runs,
+				EndParagraphRunProperties: p.EndParagraphRunProperties,
+			}
+		}
+		return &TextBody{
+			BodyProperties: dt.BodyProperties,
+			Paragraph:      paragraphs,
+		}
+	}
+
+	newShapeProperties := func(dsp *decodeShapeProperties) *ShapeProperties {
+		if dsp == nil {
+			return nil
+		}
+		return &ShapeProperties{
+			Xfrm:           newXfrm(dsp.Xfrm),
+			PresetGeometry: newPresetGeometry(dsp.PresetGeometry),
+			NoFill:         dsp.NoFill,
+			Ln:             newLine(dsp.Ln),
+		}
+	}
+
+	newNonVisualShapeProperties := func(dnsp *decodeNonVisualShapeProperties) *NonVisualShapeProperties {
+		if dnsp == nil {
+			return nil
+		}
+		return &NonVisualShapeProperties{
+			CommonNonVisualProperties:      dnsp.CommonNonVisualProperties,
+			CommonNonVisualShapeProperties: dnsp.CommonNonVisualShapeProperties,
+			NonVisualProperties:            dnsp.NonVisualProperties,
+		}
+	}
+
+	newShape := func(ds decodeShape) Shape {
+		return Shape{
+			NonVisualShapeProperties: newNonVisualShapeProperties(ds.NonVisualShapeProperties),
+			ShapeProperties:          newShapeProperties(ds.ShapeProperties),
+			TextBody:                 newTextBody(ds.TextBody),
+		}
+	}
+
 	var (
-		arr     []byte
-		buffer  = bytes.NewBuffer(arr)
-		encoder = xml.NewEncoder(buffer)
+		arr    []byte
+		buffer = bytes.NewBuffer(arr)
 	)
 	f.Slide.Range(func(p, ws interface{}) bool {
 		if ws != nil {
-			slide := ws.(*decodeSlide)
 
-			// f.addNameSpaces(p.(string), SourceRelationship)
+			ds := ws.(*decodeSlide)
 
-			if slide.DecodeAlternateContent != nil {
-				slide.AlternateContent = &alternateContent{
-					Content: slide.DecodeAlternateContent.Content,
-					XMLNSMC: SourceRelationshipCompatibility.Value,
-				}
+			shapes := make([]Shape, len(ds.CommonSlideData.ShapeTree.Shape))
+			for _, s := range ds.CommonSlideData.ShapeTree.Shape {
+				shapes = append(shapes, newShape(s))
 			}
-			slide.DecodeAlternateContent = nil
-			// reusing buffer
-			_ = encoder.Encode(slide)
-			f.saveFileList(p.(string), replaceRelationshipsBytes(f.replaceNameSpaceBytes(p.(string), buffer.Bytes())))
+
+			output, _ := xml.Marshal(&Slide{
+				XMLName: ds.XMLName,
+				CommonSlideData: SlideData{
+					ShapeTree: ShapeTree{
+						NonVisualGroupShapeProperties: (*NonVisualGroupShapeProperties)(ds.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties),
+						GroupShapeProperties:          newGroupShapeProperties(ds.CommonSlideData.ShapeTree.GroupShapeProperties),
+						Shape:                         shapes,
+					},
+				},
+			})
+
+			f.saveFileList(p.(string), f.replaceNameSpaceBytes(p.(string), output))
 			_, ok := f.checked.Load(p.(string))
 			if ok {
 				f.Slide.Delete(p.(string))
