@@ -51,4 +51,3 @@ func newUnzipSizeLimitError(unzipSizeLimit int64) error {
 func unexpectedNamespace(space string) error {
 	return fmt.Errorf("Unexpected namespace: %s", space)
 }
-

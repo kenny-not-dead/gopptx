@@ -21,7 +21,7 @@ type Slide struct {
 }
 
 type SlideData struct {
-	ShapeTree decodeShapeTree `xml:"p:spTree"`
+	ShapeTree ShapeTree `xml:"p:spTree"`
 }
 
 type ShapeTree struct {

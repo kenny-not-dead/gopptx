@@ -45,7 +45,7 @@ func (f *File) NewSlide() (int, error) {
 	rID := f.addRels(f.getPresentationRelsPath(), SourceRelationshipSlide, fmt.Sprintf("worksheets/sheet%d.xml", slideID), "")
 
 	// Create new sheet /ppt/slides/sheet%d.xml
-	f.setSlide(slideID, rID)
+	_ = f.setSlide(nextFileIndex, slideID)
 
 	// Update presentation.xml
 	f.setPresentation(slideID, rID)
@@ -85,11 +85,20 @@ func (f *File) contentTypesReader() (*contentTypes, error) {
 }
 
 // setSlide provides a function to update slide property by given index.
-func (f *File) setSlide(index int, id int) {
+func (f *File) setSlide(index int, id int) error {
 	slideXMLPath := "ppt/slides/slide" + strconv.Itoa(index) + ".xml"
 	f.slideMap[id] = slideXMLPath
-	f.Slide.Store(slideXMLPath, []byte(xml.Header+TemplateSlide))
+
+	slide := decodeSlide{}
+	err := xml.Unmarshal([]byte(xml.Header+TemplateSlide), &slide)
+	if err != nil {
+		return err
+	}
+
+	f.Slide.Store(slideXMLPath, &slide)
 	f.xmlAttr.Store(slideXMLPath, []xml.Attr{NameSpacePresentationML}) // TODO: check attr
+
+	return nil
 }
 
 // getSlideMap provides a function to get slide name and XML file path map
