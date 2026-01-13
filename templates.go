@@ -23,6 +23,8 @@ var (
 	SourceRelationship                      = xml.Attr{Name: xml.Name{Local: "r", Space: "xmlns"}, Value: "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
 	SourceRelationshipCompatibility         = xml.Attr{Name: xml.Name{Local: "mc", Space: "xmlns"}, Value: "http://schemas.openxmlformats.org/markup-compatibility/2006"}
 	NameSpacePresentationML                 = xml.Attr{Name: xml.Name{Local: "p", Space: "xmlns"}, Value: "http://schemas.openxmlformats.org/presentationml/2006/main"}
+	NameSpacePowerPointR14                  = xml.Attr{Name: xml.Name{Local: "p14", Space: "xmlns"}, Value: "http://schemas.microsoft.com/office/powerpoint/2010/main"}
+	NameSpacePowerPointR15                  = xml.Attr{Name: xml.Name{Local: "p15", Space: "xmlns"}, Value: "http://schemas.microsoft.com/office/powerpoint/2012/main"}
 )
 
 const (
