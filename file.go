@@ -506,7 +506,13 @@ func (f *File) slideWriter() {
 			}
 
 			output, _ := xml.Marshal(&Slide{
-				XMLName: ds.XMLName,
+				XMLName:  ds.XMLName,
+				XMLNSA:   NameSpaceDrawingML.Value,
+				XMLNSP:   NameSpacePresentationML.Value,
+				XMLNSR:   SourceRelationship.Value,
+				XMLNSP14: NameSpacePowerPointR14.Value,
+				XMLNSP15: NameSpacePowerPointR15.Value,
+				XMLNSMC:  SourceRelationshipCompatibility.Value,
 				CommonSlideData: SlideData{
 					ShapeTree: ShapeTree{
 						NonVisualGroupShapeProperties: (*NonVisualGroupShapeProperties)(ds.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties),
