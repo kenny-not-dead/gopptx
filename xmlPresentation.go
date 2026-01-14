@@ -31,6 +31,12 @@ type relationship struct {
 // TODO
 type presentation struct {
 	XMLName                xml.Name          `xml:"http://schemas.openxmlformats.org/presentationml/2006/main p:presentation"`
+	XMLNSA                 string            `xml:"xmlns:a,attr"`
+	XMLNSP                 string            `xml:"xmlns:p,attr"`
+	XMLNSR                 string            `xml:"xmlns:r,attr"`
+	XMLNSP14               string            `xml:"xmlns:p14,attr"`
+	XMLNSP15               string            `xml:"xmlns:p15,attr"`
+	XMLNSMC                string            `xml:"xmlns:mc,attr"`
 	AlternateContent       *alternateContent `xml:"mc:AlternateContent"`
 	DecodeAlternateContent *innerXML         `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
 	MasterSlide            masterSlideList   `xml:"p:sldMasterIdLst"`

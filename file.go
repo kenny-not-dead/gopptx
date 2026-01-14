@@ -253,6 +253,14 @@ func (f *File) contentTypesWriter() {
 // presentationWriter provides a function to save presentation.xml after serialize
 // structure.
 func (f *File) presentationWriter() {
+
+	newSlideID := func(s decodeSlideID) slideID {
+		return slideID{
+			RelationshipID: s.RelationshipID,
+			SlideID:        s.SlideID,
+		}
+	}
+
 	if f.Presentation != nil {
 		if f.Presentation.DecodeAlternateContent != nil {
 			f.Presentation.AlternateContent = &alternateContent{
@@ -261,7 +269,30 @@ func (f *File) presentationWriter() {
 			}
 		}
 		f.Presentation.DecodeAlternateContent = nil
-		output, _ := xml.Marshal(f.Presentation)
+
+		slides := make([]slideID, len(f.Presentation.Slides.Slide))
+
+		for i, s := range f.Presentation.Slides.Slide {
+			slides[i] = newSlideID(s)
+		}
+
+		output, _ := xml.Marshal(&presentation{
+			XMLName:  f.Presentation.XMLName,
+			XMLNSA:   NameSpaceDrawingML.Value,
+			XMLNSP:   NameSpacePresentationML.Value,
+			XMLNSR:   SourceRelationship.Value,
+			XMLNSP14: NameSpacePowerPointR14.Value,
+			XMLNSP15: NameSpacePowerPointR15.Value,
+			XMLNSMC:  SourceRelationshipCompatibility.Value,
+			MasterSlide: masterSlideList{
+				MasterSlide: slideID(f.Presentation.MasterSlide.MasterSlide),
+			},
+			Slides: &slideList{
+				Slide: slides,
+			},
+			SlideSize: f.Presentation.SlideSize,
+			NotesSize: f.Presentation.NotesSize,
+		})
 		f.saveFileList(f.getPresentationPath(), replaceRelationshipsBytes(f.replaceNameSpaceBytes(f.getPresentationPath(), output)))
 	}
 }

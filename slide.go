@@ -39,10 +39,10 @@ func (f *File) NewSlide() (int, error) {
 
 	// Update [Content_Types].xml
 	_ = f.setContentTypes("/ppt/slides/_rels/"+fileName+".xml.rels", ContentTypeRelationships)
-	_ = f.setContentTypes("/ppt/slides/slide"+fileName+".xml", ContentTypeSlideML)
+	_ = f.setContentTypes("/ppt/slides/"+fileName+".xml", ContentTypeSlideML)
 
 	// Update presentation.xml.rels
-	rID := f.addRels(f.getPresentationRelsPath(), SourceRelationshipSlide, fmt.Sprintf("worksheets/sheet%d.xml", slideID), "")
+	rID := f.addRels(f.getPresentationRelsPath(), SourceRelationshipSlide, fmt.Sprintf("slides/%s.xml", fileName), "")
 
 	// Create new sheet /ppt/slides/sheet%d.xml
 	_ = f.setSlide(nextFileIndex, slideID)
