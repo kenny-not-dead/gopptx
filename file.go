@@ -429,6 +429,14 @@ func (f *File) relsWriter() {
 // slideWriter provides a function to save xl/worksheets/sheet%d.xml after
 // serialize structure.
 func (f *File) slideWriter() {
+	newNonVisualGroupShapeProperties := func(nvgsp *decodeNonVisualGroupShapeProperties) *NonVisualGroupShapeProperties {
+		return &NonVisualGroupShapeProperties{
+			CommonNonVisualProperties:           nvgsp.CommonNonVisualProperties,
+			CommonNonVisualGroupShapeProperties: nvgsp.CommonNonVisualGroupShapeProperties,
+			NonVisualProperties:                 (*NonVisualProperties)(nvgsp.NonVisualProperties),
+		}
+	}
+
 	newGroupShapeProperties := func(c *decodeGroupShapeProperties) *GroupShapeProperties {
 		return &GroupShapeProperties{
 			Xfrm: &Xfrm{
@@ -508,9 +516,12 @@ func (f *File) slideWriter() {
 			return nil
 		}
 		return &NonVisualShapeProperties{
-			CommonNonVisualProperties:      dnsp.CommonNonVisualProperties,
-			CommonNonVisualShapeProperties: dnsp.CommonNonVisualShapeProperties,
-			NonVisualProperties:            dnsp.NonVisualProperties,
+			CommonNonVisualProperties: dnsp.CommonNonVisualProperties,
+			CommonNonVisualShapeProperties: &CommonNonVisualShapeProperties{
+				ShapeLocks: dnsp.CommonNonVisualShapeProperties.ShapeLocks,
+				TxBox:      dnsp.CommonNonVisualShapeProperties.TxBox,
+			},
+			NonVisualProperties: dnsp.NonVisualProperties,
 		}
 	}
 
@@ -532,8 +543,8 @@ func (f *File) slideWriter() {
 			ds := ws.(*decodeSlide)
 
 			shapes := make([]Shape, len(ds.CommonSlideData.ShapeTree.Shape))
-			for _, s := range ds.CommonSlideData.ShapeTree.Shape {
-				shapes = append(shapes, newShape(s))
+			for i, s := range ds.CommonSlideData.ShapeTree.Shape {
+				shapes[i] = newShape(s)
 			}
 
 			output, _ := xml.Marshal(&Slide{
@@ -546,10 +557,14 @@ func (f *File) slideWriter() {
 				XMLNSMC:  SourceRelationshipCompatibility.Value,
 				CommonSlideData: SlideData{
 					ShapeTree: ShapeTree{
-						NonVisualGroupShapeProperties: (*NonVisualGroupShapeProperties)(ds.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties),
+						NonVisualGroupShapeProperties: newNonVisualGroupShapeProperties(ds.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties),
 						GroupShapeProperties:          newGroupShapeProperties(ds.CommonSlideData.ShapeTree.GroupShapeProperties),
 						Shape:                         shapes,
 					},
+				},
+				AlternateContent: &alternateContent{
+					Content: ds.DecodeAlternateContent.Content,
+					XMLNSMC: SourceRelationshipCompatibility.Value,
 				},
 			})
 

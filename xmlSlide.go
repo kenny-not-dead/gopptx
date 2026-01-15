@@ -65,10 +65,19 @@ type NonVisualShapeProperties struct {
 	NonVisualProperties            *NonVisualProperties            `xml:"p:nvPr"`
 }
 
+type NonVisualProperties struct {
+	Ph *Ph `xml:"p:ph,omitempty"`
+}
+
+type CommonNonVisualShapeProperties struct {
+	TxBox      *bool       `xml:"txBox,attr,omitempty"`
+	ShapeLocks *ShapeLocks `xml:"a:spLocks,omitempty"`
+}
+
 type ShapeProperties struct {
 	Xfrm           *Xfrm           `xml:"a:xfrm"`
 	PresetGeometry *PresetGeometry `xml:"a:prstGeom,omitempty"`
-	NoFill         *any            `xml:"a:noFill,omitempty"`
+	NoFill         *noFill         `xml:"a:noFill,omitempty"`
 	Ln             *Line           `xml:"a:ln,omitempty"`
 }
 
@@ -78,8 +87,8 @@ type PresetGeometry struct {
 }
 
 type Line struct {
-	Width  int  `xml:"w,attr,omitempty"`
-	NoFill *any `xml:"a:noFill,omitempty"`
+	Width  int     `xml:"w,attr,omitempty"`
+	NoFill *noFill `xml:"a:noFill,omitempty"`
 }
 
 type TextBody struct {
@@ -114,7 +123,7 @@ type decodeShapeTree struct {
 type decodeNonVisualGroupShapeProperties struct {
 	CommonNonVisualProperties           *CommonNonVisualProperties           `xml:"cNvPr"`
 	CommonNonVisualGroupShapeProperties *CommonNonVisualGroupShapeProperties `xml:"cNvGrpSpPr"`
-	NonVisualProperties                 *NonVisualProperties                 `xml:"nvPr"`
+	NonVisualProperties                 *decodeNonVisualProperties           `xml:"nvPr"`
 }
 
 type CommonNonVisualProperties struct {
@@ -124,7 +133,13 @@ type CommonNonVisualProperties struct {
 
 type CommonNonVisualGroupShapeProperties struct{}
 
-type NonVisualProperties struct{}
+type decodeNonVisualProperties struct {
+	Ph *Ph `xml:"ph,omitempty"`
+}
+
+type Ph struct {
+	Type *string `xml:"type,attr,omitempty"`
+}
 
 type decodeGroupShapeProperties struct {
 	Xfrm *decodeXfrm `xml:"xfrm"`
@@ -154,22 +169,28 @@ type decodeShape struct {
 }
 
 type decodeNonVisualShapeProperties struct {
-	CommonNonVisualProperties      *CommonNonVisualProperties      `xml:"cNvPr"`
-	CommonNonVisualShapeProperties *CommonNonVisualShapeProperties `xml:"cNvSpPr"`
-	NonVisualProperties            *NonVisualProperties            `xml:"nvPr"`
+	CommonNonVisualProperties      *CommonNonVisualProperties            `xml:"cNvPr"`
+	CommonNonVisualShapeProperties *decodeCommonNonVisualShapeProperties `xml:"cNvSpPr"`
+	NonVisualProperties            *NonVisualProperties                  `xml:"nvPr"`
 }
 
-type CommonNonVisualShapeProperties struct {
-	TxBox      *bool `xml:"txBox,attr,omitempty"`
-	ShapeLocks *int  `xml:"spLocks,attr,omitempty"`
+type decodeCommonNonVisualShapeProperties struct {
+	TxBox      *bool       `xml:"txBox,attr,omitempty"`
+	ShapeLocks *ShapeLocks `xml:"spLocks,omitempty"`
+}
+
+type ShapeLocks struct {
+	NoGroup *int `xml:"noGrp,attr,omitempty"`
 }
 
 type decodeShapeProperties struct {
 	Xfrm           *decodeXfrm           `xml:"xfrm"`
 	PresetGeometry *decodePresetGeometry `xml:"prstGeom,omitempty"`
-	NoFill         *any                  `xml:"noFill,omitempty"`
+	NoFill         *noFill               `xml:"noFill,omitempty"`
 	Ln             *decodeLine           `xml:"ln,omitempty"`
 }
+
+type noFill struct{}
 
 type decodePresetGeometry struct {
 	Preset          string `xml:"prst,attr"`
@@ -182,8 +203,8 @@ type AdjustValue struct {
 }
 
 type decodeLine struct {
-	Width  int  `xml:"w,attr,omitempty"`
-	NoFill *any `xml:"noFill,omitempty"`
+	Width  int     `xml:"w,attr,omitempty"`
+	NoFill *noFill `xml:"noFill,omitempty"`
 }
 
 type decodeTextBody struct {
