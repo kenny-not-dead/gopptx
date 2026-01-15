@@ -39,9 +39,16 @@ func main() {
         }
     }()
 
+	_ ,err := f.NewSlide()
+	if err != nil {
+        fmt.Println(err)
+
+		return
+	}
+
     err := f.SaveAs("presentation.pptx")
 	if err != nil {
-		fmt.Println(err.Error())
+        fmt.Println(err)
 
 		return
 	}

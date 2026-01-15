@@ -27,7 +27,7 @@ var (
 	// ErrUnsupportedEncryptMechanism defined the error message on receive the blank slide name.
 	ErrSlideNameBlank = errors.New("the slide name can not be blank")
 	// ErrPresentationFileFormat defined the error message on receive an
-	// unsupported workbook file format.
+	// unsupported presentation file format.
 	ErrPresentationFileFormat = errors.New("unsupported presentation file format")
 )
 

@@ -65,21 +65,30 @@ type NonVisualShapeProperties struct {
 	NonVisualProperties            *NonVisualProperties            `xml:"p:nvPr"`
 }
 
+type NonVisualProperties struct {
+	Ph *Ph `xml:"p:ph,omitempty"`
+}
+
+type CommonNonVisualShapeProperties struct {
+	TxBox      *bool       `xml:"txBox,attr,omitempty"`
+	ShapeLocks *ShapeLocks `xml:"a:spLocks,omitempty"`
+}
+
 type ShapeProperties struct {
 	Xfrm           *Xfrm           `xml:"a:xfrm"`
 	PresetGeometry *PresetGeometry `xml:"a:prstGeom,omitempty"`
-	NoFill         *any            `xml:"a:noFill,omitempty"`
+	NoFill         *noFill         `xml:"a:noFill,omitempty"`
 	Ln             *Line           `xml:"a:ln,omitempty"`
 }
 
 type PresetGeometry struct {
-	Preset          string `xml:"prst,attr"`
-	AdjustValueList *any   `xml:"a:avLst"`
+	Preset          string           `xml:"prst,attr"`
+	AdjustValueList *AdjustValueList `xml:"a:avLst"`
 }
 
 type Line struct {
-	Width  int  `xml:"w,attr,omitempty"`
-	NoFill *any `xml:"a:noFill,omitempty"`
+	Width  *int    `xml:"w,attr,omitempty"`
+	NoFill *noFill `xml:"a:noFill,omitempty"`
 }
 
 type TextBody struct {
@@ -87,10 +96,32 @@ type TextBody struct {
 	Paragraph      []Paragraph     `xml:"a:p"`
 }
 
+type BodyProperties struct {
+	LIns      *int       `xml:"lIns,attr,omitempty"`
+	RIns      *int       `xml:"rIns,attr,omitempty"`
+	TIns      *int       `xml:"tIns,attr,omitempty"`
+	BIns      *int       `xml:"bIns,attr,omitempty"`
+	Anchor    *string    `xml:"anchor,attr,omitempty"`
+	NoAutofit *NoAutofit `xml:"a:noAutofit,omitempty"`
+}
+
 type Paragraph struct {
 	ParagraphProperties       *ParagraphProperties `xml:"a:pPr,omitempty"`
 	Runs                      []Runs               `xml:"r"`
-	EndParagraphRunProperties *Runs                `xml:"a:endParaRPr,omitempty"`
+	EndParagraphRunProperties *RunProperties       `xml:"a:endParaRPr,omitempty"`
+}
+
+type RunProperties struct {
+	Bold      *int       `xml:"b,attr,omitempty"`
+	Lang      string     `xml:"lang,attr,omitempty"`
+	Size      *int       `xml:"sz,attr,omitempty"`
+	Space     *int       `xml:"spc,attr,omitempty"`
+	Strike    string     `xml:"strike,attr,omitempty"`
+	SolidFill *SolidFill `xml:"a:solidFill,omitempty"`
+	Latin     *Latin     `xml:"a:latin,omitempty"`
+}
+type SolidFill struct {
+	SolidRGBColor *SolidRGBColor `xml:"a:srgbClr"`
 }
 
 type decodeSlide struct {
@@ -114,7 +145,7 @@ type decodeShapeTree struct {
 type decodeNonVisualGroupShapeProperties struct {
 	CommonNonVisualProperties           *CommonNonVisualProperties           `xml:"cNvPr"`
 	CommonNonVisualGroupShapeProperties *CommonNonVisualGroupShapeProperties `xml:"cNvGrpSpPr"`
-	NonVisualProperties                 *NonVisualProperties                 `xml:"nvPr"`
+	NonVisualProperties                 *decodeNonVisualProperties           `xml:"nvPr"`
 }
 
 type CommonNonVisualProperties struct {
@@ -124,7 +155,13 @@ type CommonNonVisualProperties struct {
 
 type CommonNonVisualGroupShapeProperties struct{}
 
-type NonVisualProperties struct{}
+type decodeNonVisualProperties struct {
+	Ph *Ph `xml:"ph,omitempty"`
+}
+
+type Ph struct {
+	Type *string `xml:"type,attr,omitempty"`
+}
 
 type decodeGroupShapeProperties struct {
 	Xfrm *decodeXfrm `xml:"xfrm"`
@@ -154,26 +191,35 @@ type decodeShape struct {
 }
 
 type decodeNonVisualShapeProperties struct {
-	CommonNonVisualProperties      *CommonNonVisualProperties      `xml:"cNvPr"`
-	CommonNonVisualShapeProperties *CommonNonVisualShapeProperties `xml:"cNvSpPr"`
-	NonVisualProperties            *NonVisualProperties            `xml:"nvPr"`
+	CommonNonVisualProperties      *CommonNonVisualProperties            `xml:"cNvPr"`
+	CommonNonVisualShapeProperties *decodeCommonNonVisualShapeProperties `xml:"cNvSpPr"`
+	NonVisualProperties            *decodeNonVisualProperties            `xml:"nvPr"`
 }
 
-type CommonNonVisualShapeProperties struct {
-	TxBox      *bool `xml:"txBox,attr,omitempty"`
-	ShapeLocks *int  `xml:"spLocks,attr,omitempty"`
+type decodeCommonNonVisualShapeProperties struct {
+	TxBox      *bool       `xml:"txBox,attr,omitempty"`
+	ShapeLocks *ShapeLocks `xml:"spLocks,omitempty"`
+}
+
+type ShapeLocks struct {
+	NoGroup *int `xml:"noGrp,attr,omitempty"`
 }
 
 type decodeShapeProperties struct {
 	Xfrm           *decodeXfrm           `xml:"xfrm"`
 	PresetGeometry *decodePresetGeometry `xml:"prstGeom,omitempty"`
-	NoFill         *any                  `xml:"noFill,omitempty"`
+	NoFill         *noFill               `xml:"noFill,omitempty"`
 	Ln             *decodeLine           `xml:"ln,omitempty"`
 }
 
+type noFill struct{}
+
 type decodePresetGeometry struct {
-	Preset          string `xml:"prst,attr"`
-	AdjustValueList *any   `xml:"avLst"`
+	Preset          string           `xml:"prst,attr"`
+	AdjustValueList *AdjustValueList `xml:"avLst"`
+}
+
+type AdjustValueList struct {
 }
 
 type AdjustValue struct {
@@ -182,32 +228,34 @@ type AdjustValue struct {
 }
 
 type decodeLine struct {
-	Width  int  `xml:"w,attr,omitempty"`
-	NoFill *any `xml:"noFill,omitempty"`
+	Width  *int    `xml:"w,attr,omitempty"`
+	NoFill *noFill `xml:"noFill,omitempty"`
 }
 
 type decodeTextBody struct {
-	BodyProperties *BodyProperties   `xml:"bodyPr"`
-	Paragraph      []decodeParagraph `xml:"p"`
+	BodyProperties *decodeBodyProperties `xml:"bodyPr"`
+	Paragraph      []decodeParagraph     `xml:"p"`
 }
 
-type BodyProperties struct {
-	LIns      int    `xml:"lIns,attr,omitempty"`
-	RIns      int    `xml:"rIns,attr,omitempty"`
-	TIns      int    `xml:"tIns,attr,omitempty"`
-	BIns      int    `xml:"bIns,attr,omitempty"`
-	Anchor    string `xml:"anchor,attr,omitempty"`
-	NoAutofit *any   `xml:"noAutofit,omitempty"`
+type decodeBodyProperties struct {
+	LIns      *int       `xml:"lIns,attr,omitempty"`
+	RIns      *int       `xml:"rIns,attr,omitempty"`
+	TIns      *int       `xml:"tIns,attr,omitempty"`
+	BIns      *int       `xml:"bIns,attr,omitempty"`
+	Anchor    *string    `xml:"anchor,attr,omitempty"`
+	NoAutofit *NoAutofit `xml:"noAutofit,omitempty"`
 }
+
+type NoAutofit struct{}
 
 type decodeParagraph struct {
 	ParagraphProperties       *ParagraphProperties `xml:"pPr,omitempty"`
 	Runs                      []Runs               `xml:"r"`
-	EndParagraphRunProperties *Runs                `xml:"endParaRPr,omitempty"`
+	EndParagraphRunProperties *decodeRunProperties `xml:"endParaRPr,omitempty"`
 }
 
 type ParagraphProperties struct {
-	Indent      int          `xml:"indent,attr,omitempty"`
+	Indent      *int         `xml:"indent,attr,omitempty"`
 	Align       *string      `xml:"algn,attr,omitempty"`
 	LineSpacing *LineSpacing `xml:"lnSpc,omitempty"`
 	BuNone      *struct{}    `xml:"buNone,omitempty"`
@@ -222,21 +270,21 @@ type SpacingPercent struct {
 }
 
 type Runs struct {
-	RunProperties *RunProperties `xml:"rPr,omitempty"`
-	Text          string         `xml:"t"`
+	RunProperties *decodeRunProperties `xml:"rPr,omitempty"`
+	Text          string               `xml:"t"`
 }
 
-type RunProperties struct {
-	Bold      *bool      `xml:"b,attr,omitempty"`
-	Lang      string     `xml:"lang,attr,omitempty"`
-	Size      int        `xml:"sz,attr,omitempty"`
-	Space     int        `xml:"spc,attr,omitempty"`
-	Strike    string     `xml:"strike,attr,omitempty"`
-	SolidFill *SolidFill `xml:"solidFill,omitempty"`
-	Latin     *Latin     `xml:"latin,omitempty"`
+type decodeRunProperties struct {
+	Bold      *int             `xml:"b,attr,omitempty"`
+	Lang      string           `xml:"lang,attr,omitempty"`
+	Size      *int             `xml:"sz,attr,omitempty"`
+	Space     *int             `xml:"spc,attr,omitempty"`
+	Strike    string           `xml:"strike,attr,omitempty"`
+	SolidFill *decodeSolidFill `xml:"solidFill,omitempty"`
+	Latin     *Latin           `xml:"latin,omitempty"`
 }
 
-type SolidFill struct {
+type decodeSolidFill struct {
 	SolidRGBColor *SolidRGBColor `xml:"srgbClr"`
 }
 
