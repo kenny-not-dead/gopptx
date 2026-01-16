@@ -48,17 +48,17 @@ func NewFile(opts ...Options) *File {
 	// rels, _ := f.relsReader(defaultXMLPathPresentationRels)
 	// f.Relationships.Store(defaultXMLPathPresentationRels, rels)
 	// f.slideMap[defaultXMLSlideID] = defaultXMLPathSlide
-	// // ws, err := f.slideReader(defaultXMLSlideID)
+	// // slide, err := f.slideReader(defaultXMLSlideID)
 	// if err != nil {
 	// 	fmt.Println(err)
 	// }
-	// f.Slide.Store(defaultXMLPathSlide, ws)
+	// f.Slide.Store(defaultXMLPathSlide, slide)
 	f.Theme, _ = f.themeReader()
 	f.options = f.getOptions(opts...)
 	return f
 }
 
-// Save provides a function to override the spreadsheet with origin path.
+// Save provides a function to override the presentation with origin path.
 func (f *File) Save(opts ...Options) error {
 	if f.Path == "" {
 		return ErrSave
@@ -87,7 +87,7 @@ func (f *File) SaveAs(name string, opts ...Options) error {
 	return f.Write(file, opts...)
 }
 
-// Close closes and cleanup the open temporary file for the spreadsheet.
+// Close closes and cleanup the open temporary file for the presentation.
 func (f *File) Close() error {
 	var firstErr error
 
@@ -157,7 +157,7 @@ func (f *File) writeToZip(zw ZipWriter) error {
 	f.presentationWriter()
 	// TODO: MasterWritter
 	// TODO: MasterLayoutWritter
-	f.slideWriter() // TODO: check wrire slide data
+	f.slideWriter()
 	f.relsWriter()
 	f.themeWriter()
 
@@ -297,7 +297,7 @@ func (f *File) presentationWriter() {
 	}
 }
 
-// replaceRelationshipsBytes; Some tools that read spreadsheet files have very
+// replaceRelationshipsBytes; Some tools that read presentation files have very
 // strict requirements about the structure of the input XML. This function is
 // a horrible hack to fix that after the XML marshalling is completed.
 func replaceRelationshipsBytes(content []byte) []byte {
@@ -426,7 +426,7 @@ func (f *File) relsWriter() {
 	})
 }
 
-// slideWriter provides a function to save xl/worksheets/sheet%d.xml after
+// slideWriter provides a function to save ppt/slides/slide%d.xml after
 // serialize structure.
 func (f *File) slideWriter() {
 	newNonVisualGroupShapeProperties := func(nvgsp *decodeNonVisualGroupShapeProperties) *NonVisualGroupShapeProperties {
@@ -488,13 +488,30 @@ func (f *File) slideWriter() {
 		paragraphs := make([]Paragraph, len(dt.Paragraph))
 		for i, p := range dt.Paragraph {
 			paragraphs[i] = Paragraph{
-				ParagraphProperties:       p.ParagraphProperties,
-				Runs:                      p.Runs,
-				EndParagraphRunProperties: p.EndParagraphRunProperties,
+				ParagraphProperties: p.ParagraphProperties,
+				Runs:                p.Runs,
+				EndParagraphRunProperties: &RunProperties{
+					Bold:   p.EndParagraphRunProperties.Bold,
+					Lang:   p.EndParagraphRunProperties.Lang,
+					Size:   p.EndParagraphRunProperties.Size,
+					Space:  p.EndParagraphRunProperties.Space,
+					Strike: p.EndParagraphRunProperties.Strike,
+					SolidFill: &SolidFill{
+						SolidRGBColor: p.EndParagraphRunProperties.SolidFill.SolidRGBColor,
+					},
+					Latin: p.EndParagraphRunProperties.Latin,
+				},
 			}
 		}
 		return &TextBody{
-			BodyProperties: dt.BodyProperties,
+			BodyProperties: &BodyProperties{
+				    LIns: dt.BodyProperties.LIns,
+    RIns      : dt.BodyProperties.RIns,
+    TIns     : dt.BodyProperties.TIns,
+    BIns     : dt.BodyProperties.BIns,
+    Anchor    : dt.BodyProperties.Anchor,
+    NoAutofit : dt.BodyProperties.NoAutofit,
+			},
 			Paragraph:      paragraphs,
 		}
 	}
@@ -521,7 +538,9 @@ func (f *File) slideWriter() {
 				ShapeLocks: dnsp.CommonNonVisualShapeProperties.ShapeLocks,
 				TxBox:      dnsp.CommonNonVisualShapeProperties.TxBox,
 			},
-			NonVisualProperties: dnsp.NonVisualProperties,
+			NonVisualProperties: &NonVisualProperties{
+				Ph: dnsp.NonVisualProperties.Ph,
+			},
 		}
 	}
 
@@ -537,10 +556,10 @@ func (f *File) slideWriter() {
 		arr    []byte
 		buffer = bytes.NewBuffer(arr)
 	)
-	f.Slide.Range(func(p, ws interface{}) bool {
-		if ws != nil {
+	f.Slide.Range(func(p, slide interface{}) bool {
+		if slide != nil {
 
-			ds := ws.(*decodeSlide)
+			ds := slide.(*decodeSlide)
 
 			shapes := make([]Shape, len(ds.CommonSlideData.ShapeTree.Shape))
 			for i, s := range ds.CommonSlideData.ShapeTree.Shape {

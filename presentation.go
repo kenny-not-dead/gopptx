@@ -75,10 +75,10 @@ func (f *File) getPresentationRelsPath() (path string) {
 }
 
 // setPresentation update presentation.
-func (f *File) setPresentation(sheetID, rid int) {
+func (f *File) setPresentation(slideID, rid int) {
 	presentation, _ := f.presentationReader()
 	presentation.Slides.Slide = append(presentation.Slides.Slide, decodeSlideID{
-		SlideID:        sheetID,
+		SlideID:        slideID,
 		RelationshipID: "rId" + strconv.Itoa(rid),
 	})
 }

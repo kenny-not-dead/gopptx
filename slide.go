@@ -44,7 +44,7 @@ func (f *File) NewSlide() (int, error) {
 	// Update presentation.xml.rels
 	rID := f.addRels(f.getPresentationRelsPath(), SourceRelationshipSlide, fmt.Sprintf("slides/%s.xml", fileName), "")
 
-	// Create new sheet /ppt/slides/sheet%d.xml
+	// Create new slide /ppt/slides/slide%d.xml and slide rels /ppt/slides/_rels/slide%d.xml.rels
 	_ = f.setSlide(nextFileIndex, slideID)
 
 	// Update presentation.xml
@@ -54,7 +54,7 @@ func (f *File) NewSlide() (int, error) {
 }
 
 // setContentTypes provides a function to read and update property of contents
-// type of the spreadsheet.
+// type of the presentation.
 func (f *File) setContentTypes(partName, contentType string) error {
 	content, err := f.contentTypesReader()
 	if err != nil {
@@ -97,6 +97,9 @@ func (f *File) setSlide(index int, id int) error {
 
 	f.Slide.Store(slideXMLPath, &slide)
 	f.xmlAttr.Store(slideXMLPath, []xml.Attr{NameSpacePresentationML}) // TODO: check attr
+
+	relsSlideXMLPath := "ppt/slides/_rels/slide" + strconv.Itoa(index) + ".xml.rels"
+	f.Pkg.Store(relsSlideXMLPath, []byte(xml.Header+TemplateSlideRels))
 
 	return nil
 }
@@ -175,17 +178,17 @@ func (f *File) getSlideXMLPath(id int) (string, bool) {
 // GetShapes provides a function to get shapes by given slide id.
 func (f *File) GetShapes(slideID int) ([]decodeShape, error) {
 	var shapes []decodeShape
-	ws, err := f.slideReader(slideID)
+	slide, err := f.slideReader(slideID)
 	if err != nil {
 		return shapes, err
 	}
 
-	return ws.getShapes(), err
+	return slide.getShapes(), err
 }
 
 // getShapes returns shapes of the slide.
-func (ws *decodeSlide) getShapes() []decodeShape {
-	return ws.CommonSlideData.ShapeTree.Shape
+func (ds *decodeSlide) getShapes() []decodeShape {
+	return ds.CommonSlideData.ShapeTree.Shape
 }
 
 // GetGroupShapeProperties provides a function to get group shape properties by given slide id.
@@ -199,8 +202,8 @@ func (f *File) GetGroupShapeProperties(slideID int) (*decodeGroupShapeProperties
 }
 
 // getGroupShapeProperties returns group shape properties of the slide.
-func (ws *decodeSlide) getGroupShapeProperties() *decodeGroupShapeProperties {
-	return ws.CommonSlideData.ShapeTree.GroupShapeProperties
+func (ds *decodeSlide) getGroupShapeProperties() *decodeGroupShapeProperties {
+	return ds.CommonSlideData.ShapeTree.GroupShapeProperties
 }
 
 // GetNonVisualGroupShapeProperties provides a function to get non visual group shape properties by given slide id.
@@ -214,6 +217,6 @@ func (f *File) GetNonVisualGroupShapeProperties(slideID int) (*decodeNonVisualGr
 }
 
 // NonVisualGroupShapeProperties returns non visual group shape properties of the slide.
-func (ws *decodeSlide) getNonVisualGroupShapeProperties() *decodeNonVisualGroupShapeProperties {
-	return ws.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties
+func (ds *decodeSlide) getNonVisualGroupShapeProperties() *decodeNonVisualGroupShapeProperties {
+	return ds.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties
 }
