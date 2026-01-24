@@ -220,3 +220,120 @@ func (f *File) GetNonVisualGroupShapeProperties(slideID int) (*decodeNonVisualGr
 func (ds *decodeSlide) getNonVisualGroupShapeProperties() *decodeNonVisualGroupShapeProperties {
 	return ds.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties
 }
+
+// DeleteSlide provides a function to delete slide in a presentation by given slide id.
+func (f *File) DeleteSlide(slideID int) error {
+	if idx, _ := f.GetSlideIndex(slideID); f.SlideCount == 1 || idx == -1 {
+		return nil
+	}
+
+	presentation, _ := f.presentationReader()
+	presentationRels, _ := f.relsReader(f.getPresentationRelsPath())
+
+	for idx, v := range presentation.Slides.Slide {
+		if v.SlideID != slideID {
+			continue
+		}
+
+		presentation.Slides.Slide = append(presentation.Slides.Slide[:idx], presentation.Slides.Slide[idx+1:]...)
+		var slideXML, rels string
+		if presentationRels != nil {
+			for _, rel := range presentationRels.Relationships {
+				if rel.ID == v.RelationshipID {
+					slideXML = f.getSlidePath(rel.Target)
+					slideXMLPath, _ := f.getSlideXMLPath(slideID)
+					rels = "ppt/slides/_rels/" + strings.TrimPrefix(slideXMLPath, "ppt/slides/") + ".rels"
+				}
+			}
+		}
+
+		target := f.deleteSlideFromPresentationRels(v.RelationshipID)
+		dir := filepath.Dir(target)
+		base := filepath.Base(target)
+
+		// Update [Content_Types].xml
+		_ = f.removeContentTypesPart(ContentTypeSlideML, target)
+		_ = f.removeContentTypesPart(ContentTypeRelationships, filepath.Join(dir, "_rels", base+".rels"))
+
+		// TODO: delete ppt/slides/_rels/slide%.x,l.rels
+
+		delete(f.slideMap, v.SlideID)
+		f.Pkg.Delete(slideXML)
+		f.Pkg.Delete(rels)
+		f.Relationships.Delete(rels)
+		f.Slide.Delete(slideXML)
+		f.xmlAttr.Delete(slideXML)
+		f.SlideCount--
+	}
+
+	// TODO: setActiveSlide
+	//index, err := f.GetSlideIndex(f.getActiveSlideID())
+	//f.SetActiveSlide(index)
+	return nil
+}
+
+// deleteSlideFromPresentationRels provides a function to remove slide
+// relationships by given relationships ID in the file presentation.xml.rels.
+func (f *File) deleteSlideFromPresentationRels(rID string) string {
+	rels, _ := f.relsReader(f.getPresentationRelsPath())
+	rels.mu.Lock()
+	defer rels.mu.Unlock()
+	for k, v := range rels.Relationships {
+		if v.ID == rID {
+			rels.Relationships = append(rels.Relationships[:k], rels.Relationships[k+1:]...)
+			return v.Target
+		}
+	}
+	return ""
+}
+
+// GetSlideIndex provides a function to get a slide index of the presentation by
+// the given slide id. If slide doesn't exist, it will return an integer type value -1.
+func (f *File) GetSlideIndex(slideID int) (int, error) {
+	for index, id := range f.GetSlideList() {
+		if id ==  slideID {
+			return index, nil
+		}
+	}
+	return -1, nil
+}
+
+// GetSlideList provides a function to get slides of the presentation.
+func (f *File) GetSlideList() (list []int) {
+	presentation, _ := f.presentationReader()
+	if presentation != nil {
+		for _, slide := range presentation.Slides.Slide {
+			list = append(list, slide.SlideID)
+		}
+	}
+	return
+}
+
+// GetActiveSlideIndex provides a function to get active slide index of the
+// presentation. If not found the active slide will be return integer 0.
+func (f *File) GetActiveSlideIndex() (index int) {
+	slideID := f.getActiveSlideID()
+	presentation, _ := f.presentationReader()
+	if presentation != nil {
+		for idx, slide := range presentation.Slides.Slide {
+			if slide.SlideID == slideID {
+				index = idx
+				return
+			}
+		}
+	}
+	return
+}
+
+// getActiveSlideID provides a function to get active slide ID of the
+// presentation. If not found the active slide will be return integer 0.
+func (f *File) getActiveSlideID() int {
+	presentation, _ := f.presentationReader()
+	if presentation != nil {
+		// TODO: get active slide
+		if len(presentation.Slides.Slide) >= 1 {
+			return presentation.Slides.Slide[0].SlideID
+		}
+	}
+	return 0
+}

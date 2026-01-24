@@ -82,3 +82,24 @@ func (f *File) setPresentation(slideID, rid int) {
 		RelationshipID: "rId" + strconv.Itoa(rid),
 	})
 }
+
+
+// removeContentTypesPart provides a function to remove relationships by given
+// content type and part name in the file [Content_Types].xml.
+func (f *File) removeContentTypesPart(contentType, partName string) error {
+	if !strings.HasPrefix(partName, "/") {
+		partName = "/ppt/" + partName
+	}
+	content, err := f.contentTypesReader()
+	if err != nil {
+		return err
+	}
+	content.mu.Lock()
+	defer content.mu.Unlock()
+	for k, v := range content.Overrides {
+		if v.PartName == partName && v.ContentType == contentType {
+			content.Overrides = append(content.Overrides[:k], content.Overrides[k+1:]...)
+		}
+	}
+	return err
+}
