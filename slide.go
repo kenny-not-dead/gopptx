@@ -241,8 +241,7 @@ func (f *File) DeleteSlide(slideID int) error {
 			for _, rel := range presentationRels.Relationships {
 				if rel.ID == v.RelationshipID {
 					slideXML = f.getSlidePath(rel.Target)
-					slideXMLPath, _ := f.getSlideXMLPath(slideID)
-					rels = "ppt/slides/_rels/" + strings.TrimPrefix(slideXMLPath, "ppt/slides/") + ".rels"
+					rels = "ppt/slides/_rels/" + strings.TrimPrefix(slideXML, "ppt/slides/") + ".rels"
 				}
 			}
 		}
@@ -254,8 +253,6 @@ func (f *File) DeleteSlide(slideID int) error {
 		// Update [Content_Types].xml
 		_ = f.removeContentTypesPart(ContentTypeSlideML, target)
 		_ = f.removeContentTypesPart(ContentTypeRelationships, filepath.Join(dir, "_rels", base+".rels"))
-
-		// TODO: delete ppt/slides/_rels/slide%.x,l.rels
 
 		delete(f.slideMap, v.SlideID)
 		f.Pkg.Delete(slideXML)
