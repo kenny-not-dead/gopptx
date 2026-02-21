@@ -191,6 +191,24 @@ func (ds *decodeSlide) getShapes() []decodeShape {
 	return ds.CommonSlideData.ShapeTree.Shape
 }
 
+// SetShapeTextBody provides a function to set shape text body by given shape id.
+func (f *File) SetShapeTextBody(slideID int, shapeID int, textBody DecodeTextBody) error {
+	shapes, err := f.GetShapes(slideID)
+	if err != nil {
+		return err
+	}
+
+	for i := range shapes {
+		if shapes[i].NonVisualShapeProperties.CommonNonVisualProperties.ID == shapeID {
+			shapes[i].TextBody = &textBody
+
+			return nil
+		}
+	}
+
+	return ErrShapeNotExist{shapeID}
+}
+
 // GetGroupShapeProperties provides a function to get group shape properties by given slide id.
 func (f *File) GetGroupShapeProperties(slideID int) (*decodeGroupShapeProperties, error) {
 	s, err := f.slideReader(slideID)
@@ -288,7 +306,7 @@ func (f *File) deleteSlideFromPresentationRels(rID string) string {
 // the given slide id. If slide doesn't exist, it will return an integer type value -1.
 func (f *File) GetSlideIndex(slideID int) (int, error) {
 	for index, id := range f.GetSlideList() {
-		if id ==  slideID {
+		if id == slideID {
 			return index, nil
 		}
 	}

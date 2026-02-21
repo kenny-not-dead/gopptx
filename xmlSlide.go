@@ -107,8 +107,13 @@ type BodyProperties struct {
 
 type Paragraph struct {
 	ParagraphProperties       *ParagraphProperties `xml:"a:pPr,omitempty"`
-	Runs                      []Runs               `xml:"r"`
+	Runs                      []Runs               `xml:"a:r"`
 	EndParagraphRunProperties *RunProperties       `xml:"a:endParaRPr,omitempty"`
+}
+
+type Runs struct {
+	RunProperties *RunProperties `xml:"a:rPr,omitempty"`
+	Text          string         `xml:"a:t"`
 }
 
 type RunProperties struct {
@@ -187,7 +192,7 @@ type Extents struct {
 type decodeShape struct {
 	NonVisualShapeProperties *decodeNonVisualShapeProperties `xml:"nvSpPr"`
 	ShapeProperties          *decodeShapeProperties          `xml:"spPr"`
-	TextBody                 *decodeTextBody                 `xml:"txBody,omitempty"`
+	TextBody                 *DecodeTextBody                 `xml:"txBody,omitempty"`
 }
 
 type decodeNonVisualShapeProperties struct {
@@ -232,12 +237,12 @@ type decodeLine struct {
 	NoFill *noFill `xml:"noFill,omitempty"`
 }
 
-type decodeTextBody struct {
-	BodyProperties *decodeBodyProperties `xml:"bodyPr"`
-	Paragraph      []decodeParagraph     `xml:"p"`
+type DecodeTextBody struct {
+	BodyProperties *DecodeBodyProperties `xml:"bodyPr"`
+	Paragraph      []DecodeParagraph     `xml:"p"`
 }
 
-type decodeBodyProperties struct {
+type DecodeBodyProperties struct {
 	LIns      *int       `xml:"lIns,attr,omitempty"`
 	RIns      *int       `xml:"rIns,attr,omitempty"`
 	TIns      *int       `xml:"tIns,attr,omitempty"`
@@ -248,10 +253,10 @@ type decodeBodyProperties struct {
 
 type NoAutofit struct{}
 
-type decodeParagraph struct {
+type DecodeParagraph struct {
 	ParagraphProperties       *ParagraphProperties `xml:"pPr,omitempty"`
-	Runs                      []Runs               `xml:"r"`
-	EndParagraphRunProperties *decodeRunProperties `xml:"endParaRPr,omitempty"`
+	Runs                      []DecodeRuns         `xml:"r"`
+	EndParagraphRunProperties *DecodeRunProperties `xml:"endParaRPr,omitempty"`
 }
 
 type ParagraphProperties struct {
@@ -269,22 +274,22 @@ type SpacingPercent struct {
 	Val int `xml:"val,attr"`
 }
 
-type Runs struct {
-	RunProperties *decodeRunProperties `xml:"rPr,omitempty"`
+type DecodeRuns struct {
+	RunProperties *DecodeRunProperties `xml:"rPr,omitempty"`
 	Text          string               `xml:"t"`
 }
 
-type decodeRunProperties struct {
+type DecodeRunProperties struct {
 	Bold      *int             `xml:"b,attr,omitempty"`
 	Lang      string           `xml:"lang,attr,omitempty"`
 	Size      *int             `xml:"sz,attr,omitempty"`
 	Space     *int             `xml:"spc,attr,omitempty"`
 	Strike    string           `xml:"strike,attr,omitempty"`
-	SolidFill *decodeSolidFill `xml:"solidFill,omitempty"`
+	SolidFill *DecodeSolidFill `xml:"solidFill,omitempty"`
 	Latin     *Latin           `xml:"latin,omitempty"`
 }
 
-type decodeSolidFill struct {
+type DecodeSolidFill struct {
 	SolidRGBColor *SolidRGBColor `xml:"srgbClr"`
 }
 

@@ -480,17 +480,39 @@ func (f *File) slideWriter() {
 		}
 	}
 
-	newTextBody := func(dt *decodeTextBody) *TextBody {
+	newRuns := func(r []DecodeRuns) []Runs {
+		runs := make([]Runs, len(r))
+		for i, run := range r {
+			runs[i] = Runs{
+				RunProperties: &RunProperties{
+					Bold:   run.RunProperties.Bold,
+					Lang:   run.RunProperties.Lang,
+					Size:   run.RunProperties.Size,
+					Space:  run.RunProperties.Space,
+					Strike: run.RunProperties.Strike,
+					SolidFill: &SolidFill{
+						SolidRGBColor: run.RunProperties.SolidFill.SolidRGBColor,
+					},
+					Latin: run.RunProperties.Latin,
+				},
+				Text: run.Text,
+			}
+		}
+
+		return runs
+	}
+
+	newTextBody := func(dt *DecodeTextBody) *TextBody {
 		if dt == nil {
 			return nil
 		}
 
 		paragraphs := make([]Paragraph, len(dt.Paragraph))
 		for i, p := range dt.Paragraph {
-			paragraphs[i] = Paragraph{
-				ParagraphProperties: p.ParagraphProperties,
-				Runs:                p.Runs,
-				EndParagraphRunProperties: &RunProperties{
+			var endParagraphRunProperties *RunProperties
+
+			if p.EndParagraphRunProperties != nil {
+				endParagraphRunProperties = &RunProperties{
 					Bold:   p.EndParagraphRunProperties.Bold,
 					Lang:   p.EndParagraphRunProperties.Lang,
 					Size:   p.EndParagraphRunProperties.Size,
@@ -500,19 +522,26 @@ func (f *File) slideWriter() {
 						SolidRGBColor: p.EndParagraphRunProperties.SolidFill.SolidRGBColor,
 					},
 					Latin: p.EndParagraphRunProperties.Latin,
-				},
+				}
+			}
+
+			paragraphs[i] = Paragraph{
+				ParagraphProperties:       p.ParagraphProperties,
+				Runs:                      newRuns(p.Runs),
+				EndParagraphRunProperties: endParagraphRunProperties,
 			}
 		}
+
 		return &TextBody{
 			BodyProperties: &BodyProperties{
-				    LIns: dt.BodyProperties.LIns,
-    RIns      : dt.BodyProperties.RIns,
-    TIns     : dt.BodyProperties.TIns,
-    BIns     : dt.BodyProperties.BIns,
-    Anchor    : dt.BodyProperties.Anchor,
-    NoAutofit : dt.BodyProperties.NoAutofit,
+				LIns:      dt.BodyProperties.LIns,
+				RIns:      dt.BodyProperties.RIns,
+				TIns:      dt.BodyProperties.TIns,
+				BIns:      dt.BodyProperties.BIns,
+				Anchor:    dt.BodyProperties.Anchor,
+				NoAutofit: dt.BodyProperties.NoAutofit,
 			},
-			Paragraph:      paragraphs,
+			Paragraph: paragraphs,
 		}
 	}
 
