@@ -51,3 +51,13 @@ func newUnzipSizeLimitError(unzipSizeLimit int64) error {
 func unexpectedNamespace(space string) error {
 	return fmt.Errorf("Unexpected namespace: %s", space)
 }
+
+// ErrShapeNotExist defined an error of shape that does not exist.
+type ErrShapeNotExist struct {
+	ShapeID int
+}
+
+// Error returns the error message on receiving the non existing shape.
+func (err ErrShapeNotExist) Error() string {
+	return fmt.Sprintf("shape %d does not exist", err.ShapeID)
+}

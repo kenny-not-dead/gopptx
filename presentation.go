@@ -83,7 +83,6 @@ func (f *File) setPresentation(slideID, rid int) {
 	})
 }
 
-
 // removeContentTypesPart provides a function to remove relationships by given
 // content type and part name in the file [Content_Types].xml.
 func (f *File) removeContentTypesPart(contentType, partName string) error {
