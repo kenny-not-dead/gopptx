@@ -45,14 +45,11 @@ func NewFile(opts ...Options) *File {
 	f.ContentTypes, _ = f.contentTypesReader()
 	f.Presentation, _ = f.presentationReader()
 	f.Relationships = sync.Map{}
-	// rels, _ := f.relsReader(defaultXMLPathPresentationRels)
-	// f.Relationships.Store(defaultXMLPathPresentationRels, rels)
-	// f.slideMap[defaultXMLSlideID] = defaultXMLPathSlide
-	// // slide, err := f.slideReader(defaultXMLSlideID)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// f.Slide.Store(defaultXMLPathSlide, slide)
+	rels, _ := f.relsReader(defaultXMLPathPresentationRels)
+	f.Relationships.Store(defaultXMLPathPresentationRels, rels)
+	f.slideMap[defaultXMLSlideID] = defaultXMLPathSlide
+	slide, _ := f.slideReader(defaultXMLSlideID)
+	f.Slide.Store(defaultXMLPathSlide, slide)
 	f.Theme, _ = f.themeReader()
 	f.options = f.getOptions(opts...)
 	return f

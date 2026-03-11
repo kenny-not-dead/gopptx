@@ -1,4 +1,6 @@
+
 <p align="center"><img width="650" src="./gopptx.svg" alt="gopptx logo"></p>
+
 
 <p align="center">
     <a href="https://pkg.go.dev/github.com/kenny-not-dead/gopptx"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white" alt="go.dev"></a>
@@ -39,8 +41,54 @@ func main() {
         }
     }()
 
-	_ ,err := f.NewSlide()
+    id ,err := f.NewSlide()
 	if err != nil {
+        fmt.Println(err)
+
+		return
+	}
+
+	title := gopptx.DecodeTextBody{
+		BodyProperties: &gopptx.DecodeBodyProperties{
+			LIns:      &value,
+			RIns:      &value,
+			TIns:      &value,
+			BIns:      &value,
+			Anchor:    &anchor,
+			NoAutofit: &gopptx.NoAutofit{},
+		},
+		Paragraph: []gopptx.DecodeParagraph{
+			{
+				ParagraphProperties: &gopptx.ParagraphProperties{
+					Indent: &value,
+					Align:  &anchor,
+				},
+				Runs: []gopptx.DecodeRuns{
+					{
+						RunProperties: &gopptx.DecodeRunProperties{
+							Bold: &value,
+							Lang: "en-US",
+							Size: &size,
+							Strike: "noStrike",
+							Space: &space,
+							SolidFill: &gopptx.DecodeSolidFill{
+								SolidRGBColor: &gopptx.SolidRGBColor{
+									Val: "00008b",
+								},
+							},
+							Latin: &gopptx.Latin{
+								Typeface: "Arial",
+							},
+						},
+						Text: "GOPPTX v0.3.1",
+					},
+				},
+			},
+		},
+	}
+
+	err = f.SetShapeTextBody(id, 7, title)
+    if err != nil {
         fmt.Println(err)
 
 		return

@@ -10,7 +10,6 @@ package gopptx
 import (
 	"bytes"
 	"encoding/xml"
-	"fmt"
 	"io"
 	"path/filepath"
 	"strconv"
@@ -26,9 +25,7 @@ func (f *File) presentationReader() (*decodePresentation, error) {
 		f.Presentation = new(decodePresentation)
 
 		if attrs, ok := f.xmlAttr.Load(wbPath); !ok {
-			fmt.Println(attrs)
 			d := f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readXML(wbPath))))
-			fmt.Println(d)
 			if attrs == nil {
 				attrs = []xml.Attr{}
 			}
