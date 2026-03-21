@@ -99,20 +99,13 @@ func newFile() *File {
 	}
 }
 
-// checkOpenReaderOptions check and validate options field value for open
-// reader.
+// checkOpenReaderOptions check and validate options field value for open reader.
 func (f *File) checkOpenReaderOptions() error {
 	if f.options.UnzipSizeLimit == 0 {
-		f.options.UnzipSizeLimit = UnzipSizeLimit
-		if f.options.UnzipXMLSizeLimit > f.options.UnzipSizeLimit {
-			f.options.UnzipSizeLimit = f.options.UnzipXMLSizeLimit
-		}
+		f.options.UnzipSizeLimit = max(f.options.UnzipXMLSizeLimit, UnzipSizeLimit)
 	}
 	if f.options.UnzipXMLSizeLimit == 0 {
-		f.options.UnzipXMLSizeLimit = StreamChunkSize
-		if f.options.UnzipSizeLimit < f.options.UnzipXMLSizeLimit {
-			f.options.UnzipXMLSizeLimit = f.options.UnzipSizeLimit
-		}
+		f.options.UnzipXMLSizeLimit = min(f.options.UnzipSizeLimit, StreamChunkSize)
 	}
 	if f.options.UnzipXMLSizeLimit > f.options.UnzipSizeLimit {
 		return ErrOptionsUnzipSizeLimit
@@ -120,8 +113,7 @@ func (f *File) checkOpenReaderOptions() error {
 	return nil //f.checkDateTimePattern()
 }
 
-// OpenReader read data stream from io.Reader and return a populated
-// presentation file.
+// OpenReader read data stream from io.Reader and return a populated presentation file.
 func OpenReader(r io.Reader, opts ...Options) (*File, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {
@@ -209,15 +201,6 @@ func (f *File) slideReader(slideID int) (slide *decodeSlide, err error) {
 	f.Slide.Store(path, slide)
 
 	return
-}
-
-// checkSlideName check whether there are illegal characters in the slide name.
-func checkSlideName(name string) error {
-	if name == "" {
-		return ErrSlideNameBlank
-	}
-
-	return nil
 }
 
 // addRels provides a function to add relationships by given XML path,

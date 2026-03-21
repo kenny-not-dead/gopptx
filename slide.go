@@ -28,11 +28,13 @@ func (f *File) NewSlide() (int, error) {
 	f.SlideCount++
 
 	slideID := defaultXMLSlideID
+
 	for _, s := range presentation.Slides.Slide {
 		if s.SlideID >= slideID {
 			slideID = s.SlideID + 1
 		}
 	}
+
 
 	nextFileIndex := len(presentation.Slides.Slide) + 1
 	fileName := "slide" + strconv.Itoa(nextFileIndex)
@@ -207,6 +209,45 @@ func (f *File) SetShapeTextBody(slideID int, shapeID int, textBody DecodeTextBod
 	}
 
 	return ErrShapeNotExist{shapeID}
+}
+
+// TODO
+// SetShapeTextBody provides a function to set shape text body by given shape id.
+// func (f *File) CreateShape(slideID int, shape decodeShape) error {
+// 	shapes, err := f.GetShapes(slideID)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	shapes = append(shapes, shape)
+
+// 	return nil
+// }
+
+// DeleteShape provides a function to delete shape on slide by given shape id.
+func (f *File) DeleteShape(slideID int, shapeID int) error {
+	shapes, err := f.GetShapes(slideID)
+	if err != nil {
+		return err
+	}
+
+	deleteSlideIndex := -1
+	for i := range shapes {
+		if shapes[i].NonVisualShapeProperties.CommonNonVisualProperties.ID == shapeID {
+
+			deleteSlideIndex = i
+
+			break
+		}
+	}
+
+	if deleteSlideIndex == -1 {
+		return ErrSlideNotExist{slideID}
+	}
+
+	shapes = append(shapes[:deleteSlideIndex], shapes[deleteSlideIndex+1:]...)
+
+	return nil
 }
 
 // GetGroupShapeProperties provides a function to get group shape properties by given slide id.

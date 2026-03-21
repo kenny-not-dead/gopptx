@@ -74,7 +74,7 @@ func readFile(file *zip.File) ([]byte, error) {
 // unzipToTemp unzip the zip entity to the system temporary directory and
 // returned the unzipped file path.
 func (f *File) unzipToTemp(zipFile *zip.File) (string, error) {
-	tmp, err := os.CreateTemp(f.options.TmpDir, "excelize-")
+	tmp, err := os.CreateTemp(f.options.TmpDir, "gopptx-")
 	if err != nil {
 		return "", err
 	}
@@ -285,7 +285,6 @@ func (f *File) readTemp(name string) (file *os.File, err error) {
 	return
 }
 
-// TODO
 func (s *decodeSlideID) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	for _, attr := range start.Attr {
 		if attr.Name.Local == "id" {
