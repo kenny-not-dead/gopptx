@@ -35,7 +35,6 @@ func (f *File) NewSlide() (int, error) {
 		}
 	}
 
-
 	nextFileIndex := len(presentation.Slides.Slide) + 1
 	fileName := "slide" + strconv.Itoa(nextFileIndex)
 
@@ -211,25 +210,50 @@ func (f *File) SetShapeTextBody(slideID int, shapeID int, textBody DecodeTextBod
 	return ErrShapeNotExist{shapeID}
 }
 
-// TODO
-// SetShapeTextBody provides a function to set shape text body by given shape id.
-// func (f *File) CreateShape(slideID int, shape decodeShape) error {
-// 	shapes, err := f.GetShapes(slideID)
-// 	if err != nil {
-// 		return err
-// 	}
+// CreateShape provides the function to create  a new shape by given slide id and
+// returns the id of the shape in the slide after it appended.
+func (f *File) CreateShape(slideID int, shapeProperties DecodeShapeProperties, textBody DecodeTextBody) (int, error) {
+	slide, err := f.slideReader(slideID)
+	if err != nil {
+		return -1, err
+	}
 
-// 	shapes = append(shapes, shape)
+    shapes := slide.getShapes()
 
-// 	return nil
-// }
+	shapeID := defaultXMLShapeID
+	for _, s := range shapes {
+		if s.NonVisualShapeProperties != nil && s.NonVisualShapeProperties.CommonNonVisualProperties != nil {
+			shapeID = max(shapeID, s.NonVisualShapeProperties.CommonNonVisualProperties.ID)
+		}
+	}
+
+	shapeID++
+
+	newShape := decodeShape{
+		NonVisualShapeProperties: &decodeNonVisualShapeProperties{
+			CommonNonVisualProperties: &CommonNonVisualProperties{
+				ID: shapeID,
+			},
+		},
+		ShapeProperties: &shapeProperties,
+		TextBody:        &textBody,
+	}
+
+	shapes = append(shapes, newShape)
+
+    slide.CommonSlideData.ShapeTree.Shape = shapes
+
+	return shapeID, nil
+}
 
 // DeleteShape provides a function to delete shape on slide by given shape id.
 func (f *File) DeleteShape(slideID int, shapeID int) error {
-	shapes, err := f.GetShapes(slideID)
+	slide, err := f.slideReader(slideID)
 	if err != nil {
 		return err
 	}
+
+    shapes := slide.getShapes()
 
 	deleteSlideIndex := -1
 	for i := range shapes {
@@ -247,6 +271,8 @@ func (f *File) DeleteShape(slideID int, shapeID int) error {
 
 	shapes = append(shapes[:deleteSlideIndex], shapes[deleteSlideIndex+1:]...)
 
+	slide.CommonSlideData.ShapeTree.Shape = shapes
+	
 	return nil
 }
 

@@ -74,6 +74,7 @@ const (
 	defaultXMLMasterSlideID = "rId2"
 	defaultXMLSlideRID      = "rId3"
 	defaultXMLSlideID       = 256
+	defaultXMLShapeID       = 7
 )
 
 const (
