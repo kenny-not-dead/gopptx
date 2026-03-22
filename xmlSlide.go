@@ -169,10 +169,10 @@ type Ph struct {
 }
 
 type decodeGroupShapeProperties struct {
-	Xfrm *decodeXfrm `xml:"xfrm"`
+	Xfrm *DecodeXfrm `xml:"xfrm"`
 }
 
-type decodeXfrm struct {
+type DecodeXfrm struct {
 	Offset       *Offset  `xml:"off"`
 	Extents      *Extents `xml:"ext"`
 	ChildOffset  *Offset  `xml:"chOff"`
@@ -191,7 +191,7 @@ type Extents struct {
 
 type decodeShape struct {
 	NonVisualShapeProperties *decodeNonVisualShapeProperties `xml:"nvSpPr"`
-	ShapeProperties          *decodeShapeProperties          `xml:"spPr"`
+	ShapeProperties          *DecodeShapeProperties          `xml:"spPr"`
 	TextBody                 *DecodeTextBody                 `xml:"txBody,omitempty"`
 }
 
@@ -210,16 +210,16 @@ type ShapeLocks struct {
 	NoGroup *int `xml:"noGrp,attr,omitempty"`
 }
 
-type decodeShapeProperties struct {
-	Xfrm           *decodeXfrm           `xml:"xfrm"`
-	PresetGeometry *decodePresetGeometry `xml:"prstGeom,omitempty"`
+type DecodeShapeProperties struct {
+	Xfrm           *DecodeXfrm           `xml:"xfrm"`
+	PresetGeometry *DecodePresetGeometry `xml:"prstGeom,omitempty"`
 	NoFill         *noFill               `xml:"noFill,omitempty"`
 	Ln             *decodeLine           `xml:"ln,omitempty"`
 }
 
 type noFill struct{}
 
-type decodePresetGeometry struct {
+type DecodePresetGeometry struct {
 	Preset          string           `xml:"prst,attr"`
 	AdjustValueList *AdjustValueList `xml:"avLst"`
 }

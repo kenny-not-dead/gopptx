@@ -1,11 +1,11 @@
 
 <p align="center"><img width="650" src="./gopptx.svg" alt="gopptx logo"></p>
 
-
 <p align="center">
     <a href="https://pkg.go.dev/github.com/kenny-not-dead/gopptx"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white" alt="go.dev"></a>
     <a href="https://opensource.org/licenses/BSD-3-Clause"><img src="https://img.shields.io/badge/license-bsd-orange.svg" alt="Licenses"></a>
 </p>
+
 
 # GoPPTX
 
@@ -87,11 +87,39 @@ func main() {
 		},
 	}
 
+	// 7 is default shapeID
 	err = f.SetShapeTextBody(id, 7, title)
     if err != nil {
         fmt.Println(err)
 
 		return
+	}
+
+	shapeProperties := gopptx.DecodeShapeProperties{
+		Xfrm: &gopptx.DecodeXfrm{
+			Offset: &gopptx.Offset{
+				X: 1697760,
+				Y: 1828800,
+			},
+			Extents: &gopptx.Extents{
+				CX: 2417040,
+				CY: 685800,
+			},
+		},
+		PresetGeometry: &gopptx.DecodePresetGeometry{
+			Preset: "rect",
+		},
+	}
+
+	// 256 is default slideID, 8 is default shapeID
+	err = f.DeleteShape(256, 8)
+	if err != nil {
+		fmt.Println("err: ", err)
+	}
+
+	_, err = f.CreateShape(256, shapeProperties, title)
+	if err != nil {
+		fmt.Println(err)
 	}
 
     err := f.SaveAs("presentation.pptx")

@@ -441,7 +441,7 @@ func (f *File) slideWriter() {
 		}
 	}
 
-	newXfrm := func(dx *decodeXfrm) *Xfrm {
+	newXfrm := func(dx *DecodeXfrm) *Xfrm {
 		if dx == nil {
 			return nil
 		}
@@ -454,7 +454,7 @@ func (f *File) slideWriter() {
 		}
 	}
 
-	newPresetGeometry := func(dpg *decodePresetGeometry) *PresetGeometry {
+	newPresetGeometry := func(dpg *DecodePresetGeometry) *PresetGeometry {
 		if dpg == nil {
 			return nil
 		}
@@ -540,7 +540,7 @@ func (f *File) slideWriter() {
 		}
 	}
 
-	newShapeProperties := func(dsp *decodeShapeProperties) *ShapeProperties {
+	newShapeProperties := func(dsp *DecodeShapeProperties) *ShapeProperties {
 		if dsp == nil {
 			return nil
 		}
@@ -557,16 +557,26 @@ func (f *File) slideWriter() {
 		if dnsp == nil {
 			return nil
 		}
-		
-		return &NonVisualShapeProperties{
-			CommonNonVisualProperties: dnsp.CommonNonVisualProperties,
-			CommonNonVisualShapeProperties: &CommonNonVisualShapeProperties{
+
+		var commonNonVisualShapeProperties *CommonNonVisualShapeProperties
+		if dnsp.CommonNonVisualShapeProperties != nil {
+			commonNonVisualShapeProperties = &CommonNonVisualShapeProperties{
 				ShapeLocks: dnsp.CommonNonVisualShapeProperties.ShapeLocks,
 				TxBox:      dnsp.CommonNonVisualShapeProperties.TxBox,
-			},
-			NonVisualProperties: &NonVisualProperties{
+			}
+		}
+
+		var nonVisualProperties *NonVisualProperties
+		if dnsp.NonVisualProperties != nil {
+			nonVisualProperties = &NonVisualProperties{
 				Ph: dnsp.NonVisualProperties.Ph,
-			},
+			}
+		}
+
+		return &NonVisualShapeProperties{
+			CommonNonVisualProperties: dnsp.CommonNonVisualProperties,
+			CommonNonVisualShapeProperties: commonNonVisualShapeProperties,
+			NonVisualProperties: nonVisualProperties,
 		}
 	}
 
