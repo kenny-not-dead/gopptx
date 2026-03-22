@@ -1,6 +1,6 @@
 module github.com/kenny-not-dead/gopptx
 
-go 1.24.5
+go 1.24.0
 
 require golang.org/x/net v0.14.0
 

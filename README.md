@@ -117,7 +117,7 @@ import (
 )
 
 func main() {
-    f, err := excelize.OpenFile("presentation.pptx")
+    f, err := gopptx.OpenFile("presentation.pptx")
     if err != nil {
         fmt.Println(err)
         return

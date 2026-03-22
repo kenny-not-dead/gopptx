@@ -21,19 +21,19 @@ import (
 func (f *File) presentationReader() (*decodePresentation, error) {
 	var err error
 	if f.Presentation == nil {
-		wbPath := f.getPresentationPath()
+		presPath := f.getPresentationPath()
 		f.Presentation = new(decodePresentation)
 
-		if attrs, ok := f.xmlAttr.Load(wbPath); !ok {
-			d := f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readXML(wbPath))))
+		if attrs, ok := f.xmlAttr.Load(presPath); !ok {
+			d := f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readXML(presPath))))
 			if attrs == nil {
 				attrs = []xml.Attr{}
 			}
 			attrs = append(attrs.([]xml.Attr), getRootElement(d)...)
-			f.xmlAttr.Store(wbPath, attrs)
-			f.addNameSpaces(wbPath, SourceRelationship)
+			f.xmlAttr.Store(presPath, attrs)
+			f.addNameSpaces(presPath, SourceRelationship)
 		}
-		if err = f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readXML(wbPath)))).
+		if err = f.xmlNewDecoder(bytes.NewReader(namespaceStrictToTransitional(f.readXML(presPath)))).
 			Decode(f.Presentation); err != nil && err != io.EOF {
 			return f.Presentation, err
 		}
@@ -61,13 +61,13 @@ func (f *File) getPresentationPath() (path string) {
 // getPresentationRelsPath provides a function to get the path of the presentation.xml.rels
 // in the presentation.
 func (f *File) getPresentationRelsPath() (path string) {
-	wbPath := f.getPresentationPath()
-	wbDir := filepath.Dir(wbPath)
-	if wbDir == "." {
-		path = "_rels/" + filepath.Base(wbPath) + ".rels"
+	presPath := f.getPresentationPath()
+	presDir := filepath.Dir(presPath)
+	if presDir == "." {
+		path = "_rels/" + filepath.Base(presPath) + ".rels"
 		return
 	}
-	path = strings.TrimPrefix(filepath.Dir(wbPath)+"/_rels/"+filepath.Base(wbPath)+".rels", "/")
+	path = strings.TrimPrefix(filepath.Dir(presPath)+"/_rels/"+filepath.Base(presPath)+".rels", "/")
 	return
 }
 

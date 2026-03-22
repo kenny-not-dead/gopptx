@@ -24,7 +24,7 @@ var (
 	ErrMaxFilePathLength = fmt.Errorf("file path length exceeds maximum limit %d characters", MaxFilePathLength)
 	// ErrSave defined the error message for saving file.
 	ErrSave = errors.New("no path defined for file, consider File.WriteTo or File.Write")
-	// ErrUnsupportedEncryptMechanism defined the error message on receive the blank slide name.
+	// ErrSlideNameBlank is returned when the slide name is empty.
 	ErrSlideNameBlank = errors.New("the slide name can not be blank")
 	// ErrPresentationFileFormat defined the error message on receive an
 	// unsupported presentation file format.
@@ -41,13 +41,12 @@ func (err ErrSlideNotExist) Error() string {
 	return fmt.Sprintf("slide %d does not exist", err.SlideID)
 }
 
-// newUnzipSizeLimitError defined the error message on unzip size exceeds the
-// limit.
+// newUnzipSizeLimitError returns an error when the unzipped content exceeds the specified limit.
 func newUnzipSizeLimitError(unzipSizeLimit int64) error {
 	return fmt.Errorf("unzip size exceeds the %d bytes limit", unzipSizeLimit)
 }
 
-// TODO
+// unexpectedNamespace returns an error when an unexpected XML namespace is encountered.
 func unexpectedNamespace(space string) error {
 	return fmt.Errorf("Unexpected namespace: %s", space)
 }

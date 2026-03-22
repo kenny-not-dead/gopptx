@@ -66,8 +66,7 @@ func (f *File) Save(opts ...Options) error {
 	return f.SaveAs(f.Path, *f.options)
 }
 
-// SaveAs provides a function to create or update to a presentation at the
-// provided path.
+// SaveAs provides a function to create or update to a presentation at the provided path.
 func (f *File) SaveAs(name string, opts ...Options) error {
 	if len(name) > MaxFilePathLength {
 		return ErrMaxFilePathLength
@@ -143,7 +142,6 @@ func (f *File) WriteToBuffer() (*bytes.Buffer, error) {
 	if err := zw.Close(); err != nil {
 		return buf, err
 	}
-	// f.writeZip64LFH(buf)
 
 	return buf, nil
 }
@@ -238,8 +236,7 @@ func (f *File) setContentTypePartProjectExtensions(contentType string) error {
 	return err
 }
 
-// contentTypesWriter provides a function to save [Content_Types].xml after
-// serialize structure.
+// contentTypesWriter provides a function to save [Content_Types].xml after serialize structure.
 func (f *File) contentTypesWriter() {
 	if f.ContentTypes != nil {
 		output, _ := xml.Marshal(f.ContentTypes)
@@ -247,10 +244,8 @@ func (f *File) contentTypesWriter() {
 	}
 }
 
-// presentationWriter provides a function to save presentation.xml after serialize
-// structure.
+// presentationWriter provides a function to save presentation.xml after serialize structure.
 func (f *File) presentationWriter() {
-
 	newSlideID := func(s decodeSlideID) slideID {
 		return slideID{
 			RelationshipID: s.RelationshipID,
@@ -408,8 +403,7 @@ func (f *File) themeWriter() {
 	}
 }
 
-// relsWriter provides a function to save relationships after
-// serialize structure.
+// relsWriter provides a function to save relationships after serialize structure.
 func (f *File) relsWriter() {
 	f.Relationships.Range(func(path, rel interface{}) bool {
 		if rel != nil {
@@ -426,7 +420,9 @@ func (f *File) relsWriter() {
 // slideWriter provides a function to save ppt/slides/slide%d.xml after
 // serialize structure.
 func (f *File) slideWriter() {
-	newNonVisualGroupShapeProperties := func(nvgsp *decodeNonVisualGroupShapeProperties) *NonVisualGroupShapeProperties {
+	newNonVisualGroupShapeProperties := func(
+		nvgsp *decodeNonVisualGroupShapeProperties,
+	) *NonVisualGroupShapeProperties {
 		return &NonVisualGroupShapeProperties{
 			CommonNonVisualProperties:           nvgsp.CommonNonVisualProperties,
 			CommonNonVisualGroupShapeProperties: nvgsp.CommonNonVisualGroupShapeProperties,
@@ -449,6 +445,7 @@ func (f *File) slideWriter() {
 		if dx == nil {
 			return nil
 		}
+
 		return &Xfrm{
 			Offset:       dx.Offset,
 			Extents:      dx.Extents,
@@ -461,6 +458,7 @@ func (f *File) slideWriter() {
 		if dpg == nil {
 			return nil
 		}
+
 		return &PresetGeometry{
 			Preset:          dpg.Preset,
 			AdjustValueList: dpg.AdjustValueList,
@@ -546,6 +544,7 @@ func (f *File) slideWriter() {
 		if dsp == nil {
 			return nil
 		}
+
 		return &ShapeProperties{
 			Xfrm:           newXfrm(dsp.Xfrm),
 			PresetGeometry: newPresetGeometry(dsp.PresetGeometry),
@@ -558,6 +557,7 @@ func (f *File) slideWriter() {
 		if dnsp == nil {
 			return nil
 		}
+		
 		return &NonVisualShapeProperties{
 			CommonNonVisualProperties: dnsp.CommonNonVisualProperties,
 			CommonNonVisualShapeProperties: &CommonNonVisualShapeProperties{
