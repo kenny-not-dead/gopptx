@@ -511,7 +511,7 @@ func shapeOrderOf(child *decodeShapeTreeChild) (ShapeOrder, bool) {
 			child.Shape.NonVisualShapeProperties.CommonNonVisualProperties == nil {
 			return ShapeOrder{}, false
 		}
-		
+
 		return ShapeOrder{
 			Kind: ShapeOrderSp,
 			ID:   child.Shape.NonVisualShapeProperties.CommonNonVisualProperties.ID,
@@ -603,7 +603,7 @@ func (f *File) DeleteShape(slideID int, shapeID int) error {
 	}
 
 	if deleteSlideIndex == -1 {
-		return ErrSlideNotExist{slideID}
+		return ErrShapeNotExist{shapeID}
 	}
 
 	slide.CommonSlideData.ShapeTree.Children = append(children[:deleteSlideIndex], children[deleteSlideIndex+1:]...)
@@ -673,6 +673,21 @@ func (f *File) DeleteSlide(slideID int) error {
 		// Update [Content_Types].xml
 		_ = f.removeContentTypesPart(ContentTypeSlideML, target)
 		_ = f.removeContentTypesPart(ContentTypeRelationships, filepath.Join(dir, "_rels", base+".rels"))
+
+		// delete the notes slide of the slide (the part, the rels part and
+		// the content types; the notesSlide relationship of the slide is
+		// removed together with the slide rels part)
+		if notesPath, ok := f.getNotesSlidePath(v.SlideID); ok {
+			notesBase := filepath.Base(notesPath)
+			notesRelsPath := "ppt/notesSlides/_rels/" + notesBase + ".rels"
+			_ = f.removeContentTypesPart(ContentTypeNotesSlideML, notesPath)
+			_ = f.removeContentTypesPart(ContentTypeRelationships, "ppt/notesSlides/_rels/"+notesBase+".rels")
+			f.Pkg.Delete(notesPath)
+			f.Pkg.Delete(notesRelsPath)
+			f.Relationships.Delete(notesRelsPath)
+			f.NotesSlides.Delete(notesPath)
+			f.xmlAttr.Delete(notesPath)
+		}
 
 		delete(f.slideMap, v.SlideID)
 		f.Pkg.Delete(slideXML)

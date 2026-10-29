@@ -33,13 +33,19 @@ const (
 const (
 	ContentTypePresentationML                     = "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
 	ContentTypeSlideML                            = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
+	ContentTypeNotesMasterML                      = "application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml"
+	ContentTypeNotesSlideML                       = "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"
+	ContentTypeThemeML                            = "application/vnd.openxmlformats-officedocument.theme+xml"
 	ContentTypeRelationships                      = "application/vnd.openxmlformats-package.relationships+xml"
 	ContentTypeVBA                                = "application/vnd.ms-office.vbaProject"
 	NameSpaceDrawingMLMain                        = "http://schemas.openxmlformats.org/drawingml/2006/main"
 	NameSpaceExtendedProperties                   = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
 	NameSpaceXML                                  = "http://www.w3.org/XML/1998/namespace"
 	SourceRelationshipCustomProperties            = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties"
+	SourceRelationshipHyperlink                   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
 	SourceRelationshipImage                       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+	SourceRelationshipNotesMaster                 = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster"
+	SourceRelationshipNotesSlide                  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
 	SourceRelationshipOfficeDocument              = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
 	SourceRelationshipSlide                       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
 	StrictNameSpaceDocumentPropertiesVariantTypes = "http://purl.oclc.org/ooxml/officeDocument/docPropsVTypes"
@@ -57,7 +63,10 @@ const (
 	defaultXMLPathSlideLayoutRels = "ppt/slideLayouts/_rels/slideLayout1.xml.rels"
 	defaultXMLPathSlideMaster     = "ppt/slideMasters/slideMaster1.xml"
 	defaultXMLPathSlideMasterRels = "ppt/slideMasters/_rels/slideMaster1.xml.rels"
+	defaultXMLPathNotesMaster     = "ppt/notesMasters/notesMaster1.xml"
+	defaultXMLPathNotesMasterRels = "ppt/notesMasters/_rels/notesMaster1.xml.rels"
 	defaultXMLPathTheme           = "ppt/theme/theme1.xml"
+	defaultXMLPathTheme2          = "ppt/theme/theme2.xml"
 )
 
 const (

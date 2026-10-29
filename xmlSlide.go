@@ -266,6 +266,7 @@ type CommonNonVisualShapeProperties struct {
 
 type ShapeProperties struct {
 	Xfrm           *Xfrm           `xml:"a:xfrm"`
+	CustGeom       *innerXML       `xml:"a:custGeom,omitempty"`
 	PresetGeometry *PresetGeometry `xml:"a:prstGeom,omitempty"`
 	NoFill         *noFill         `xml:"a:noFill,omitempty"`
 	SolidFill      *SolidFill      `xml:"a:solidFill,omitempty"`
@@ -364,15 +365,17 @@ type Runs struct {
 }
 
 type RunProperties struct {
-	Bold          *int       `xml:"b,attr,omitempty"`
-	Lang          string     `xml:"lang,attr,omitempty"`
-	Size          *int       `xml:"sz,attr,omitempty"`
-	Space         *int       `xml:"spc,attr,omitempty"`
-	Strike        string     `xml:"strike,attr,omitempty"`
-	SolidFill     *SolidFill `xml:"a:solidFill,omitempty"`
-	Latin         *Font      `xml:"a:latin,omitempty"`
-	EastAsian     *Font      `xml:"a:ea,omitempty"`
-	ComplexScript *Font      `xml:"a:cs,omitempty"`
+	Bold           *int       `xml:"b,attr,omitempty"`
+	Lang           string     `xml:"lang,attr,omitempty"`
+	Size           *int       `xml:"sz,attr,omitempty"`
+	Space          *int       `xml:"spc,attr,omitempty"`
+	Strike         string     `xml:"strike,attr,omitempty"`
+	SolidFill      *SolidFill `xml:"a:solidFill,omitempty"`
+	Latin          *Font      `xml:"a:latin,omitempty"`
+	EastAsian      *Font      `xml:"a:ea,omitempty"`
+	ComplexScript  *Font      `xml:"a:cs,omitempty"`
+	HlinkClick     *Hyperlink `xml:"a:hlinkClick,omitempty"`
+	HlinkMouseOver *Hyperlink `xml:"a:hlinkMouseOver,omitempty"`
 }
 type SolidFill struct {
 	SolidRGBColor *SolidRGBColor `xml:"a:srgbClr"`
@@ -486,10 +489,12 @@ type decodeNonVisualGroupShapeProperties struct {
 }
 
 type CommonNonVisualProperties struct {
-	ID     int     `xml:"id,attr"`
-	Name   string  `xml:"name,attr"`
-	Title  string  `xml:"title,attr,omitempty"`
-	ExtLst *ExtLst `xml:"a:extLst,omitempty"`
+	ID             int        `xml:"id,attr"`
+	Name           string     `xml:"name,attr"`
+	Title          string     `xml:"title,attr,omitempty"`
+	HlinkClick     *Hyperlink `xml:"a:hlinkClick,omitempty"`
+	HlinkMouseOver *Hyperlink `xml:"a:hlinkMouseOver,omitempty"`
+	ExtLst         *ExtLst    `xml:"a:extLst,omitempty"`
 }
 
 // ExtLst defines the extension list (a:extLst) element of the common
@@ -569,10 +574,12 @@ type decodeNonVisualConnectorProperties struct {
 // decodeCommonNonVisualProperties directly maps the cNvPr element of the
 // non-visual properties.
 type decodeCommonNonVisualProperties struct {
-	ID     int       `xml:"id,attr"`
-	Name   string    `xml:"name,attr"`
-	Title  string    `xml:"title,attr,omitempty"`
-	ExtLst *innerXML `xml:"extLst,omitempty"`
+	ID             int              `xml:"id,attr"`
+	Name           string           `xml:"name,attr"`
+	Title          string           `xml:"title,attr,omitempty"`
+	HlinkClick     *DecodeHyperlink `xml:"hlinkClick,omitempty"`
+	HlinkMouseOver *DecodeHyperlink `xml:"hlinkMouseOver,omitempty"`
+	ExtLst         *innerXML        `xml:"extLst,omitempty"`
 }
 
 // decodeBlipFill directly maps the blipFill element of the picture.
@@ -609,6 +616,7 @@ type ShapeLocks struct {
 
 type DecodeShapeProperties struct {
 	Xfrm           *DecodeXfrm           `xml:"xfrm"`
+	CustGeom       *innerXML             `xml:"custGeom,omitempty"`
 	PresetGeometry *DecodePresetGeometry `xml:"prstGeom,omitempty"`
 	NoFill         *noFill               `xml:"noFill,omitempty"`
 	SolidFill      *DecodeSolidFill      `xml:"solidFill,omitempty"`
@@ -726,15 +734,17 @@ type DecodeRuns struct {
 }
 
 type DecodeRunProperties struct {
-	Bold          *int             `xml:"b,attr,omitempty"`
-	Lang          string           `xml:"lang,attr,omitempty"`
-	Size          *int             `xml:"sz,attr,omitempty"`
-	Space         *int             `xml:"spc,attr,omitempty"`
-	Strike        string           `xml:"strike,attr,omitempty"`
-	SolidFill     *DecodeSolidFill `xml:"solidFill,omitempty"`
-	Latin         *Font            `xml:"latin,omitempty"`
-	EastAsian     *Font            `xml:"ea,omitempty"`
-	ComplexScript *Font            `xml:"cs,omitempty"`
+	Bold           *int             `xml:"b,attr,omitempty"`
+	Lang           string           `xml:"lang,attr,omitempty"`
+	Size           *int             `xml:"sz,attr,omitempty"`
+	Space          *int             `xml:"spc,attr,omitempty"`
+	Strike         string           `xml:"strike,attr,omitempty"`
+	SolidFill      *DecodeSolidFill `xml:"solidFill,omitempty"`
+	Latin          *Font            `xml:"latin,omitempty"`
+	EastAsian      *Font            `xml:"ea,omitempty"`
+	ComplexScript  *Font            `xml:"cs,omitempty"`
+	HlinkClick     *DecodeHyperlink `xml:"hlinkClick,omitempty"`
+	HlinkMouseOver *DecodeHyperlink `xml:"hlinkMouseOver,omitempty"`
 }
 
 type DecodeSolidFill struct {
@@ -743,6 +753,22 @@ type DecodeSolidFill struct {
 
 type SolidRGBColor struct {
 	Val string `xml:"val,attr"`
+}
+
+// Hyperlink defines the hyperlink (a:hlinkClick or a:hlinkMouseOver) element
+// of the run properties or of the common non-visual properties: the id of the
+// hyperlink relationship in the slide rels part and the tooltip shown on
+// hover.
+type Hyperlink struct {
+	ID      string `xml:"r:id,attr"`
+	Tooltip string `xml:"tooltip,attr,omitempty"`
+}
+
+// DecodeHyperlink directly maps the hlinkClick or hlinkMouseOver element of
+// the run properties or of the common non-visual properties.
+type DecodeHyperlink struct {
+	ID      string `xml:"http://schemas.openxmlformats.org/officeDocument/2006/relationships id,attr"`
+	Tooltip string `xml:"tooltip,attr,omitempty"`
 }
 
 // Font defines a font typeface element (a:latin, a:ea or a:cs) of the run

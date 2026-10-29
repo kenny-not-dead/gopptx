@@ -42,6 +42,7 @@ type File struct {
 	Relationships                 sync.Map
 	Slide                         sync.Map
 	SlideCount                    int
+	NotesSlides                   sync.Map
 	Theme                         *decodeTheme
 	ZipWriter                     func(io.Writer) ZipWriter
 }

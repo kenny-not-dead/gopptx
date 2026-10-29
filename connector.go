@@ -29,7 +29,7 @@ func (ds *decodeSlide) getConnectors() []decodeConnector {
 			connectors = append(connectors, *child)
 		}
 	}
-	
+
 	return connectors
 }
 
