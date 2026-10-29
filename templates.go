@@ -39,6 +39,15 @@ var (
 	//go:embed templates/slideMaster1-rels.xml
 	templateSlideMasterRels string
 
+	//go:embed templates/notesSlide.xml
+	TemplateNotesSlide string
+
+	//go:embed templates/notesMaster1.xml
+	templateNotesMaster string
+
+	//go:embed templates/notesMaster1-rels.xml
+	templateNotesMasterRels string
+
 	//go:embed templates/presentation.xml
 	templatePresentation string
 

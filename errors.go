@@ -38,6 +38,12 @@ var (
 	// tree children does not match the shape tree of the slide: every
 	// child of the shape tree must be contained in the order exactly once.
 	ErrShapeOrderInvalid = errors.New("the order of the shapes does not match the shape tree of the slide")
+	// ErrInvalidLinkType is returned when the given hyperlink link type is
+	// not supported: the link type must be LinkTypeExternal or LinkTypeNone.
+	ErrInvalidLinkType = errors.New("the link type must be LinkTypeExternal or LinkTypeNone")
+	// ErrShapeHyperlinkAmbiguous is returned when the shape contains runs
+	// with different hyperlinks, so the hyperlink of the shape is ambiguous.
+	ErrShapeHyperlinkAmbiguous = errors.New("the shape contains runs with different hyperlinks")
 )
 
 // ErrSlideNotExist defined an error of slide that does not exist.
@@ -89,6 +95,33 @@ type ErrConnectorNotExist struct {
 func (err ErrConnectorNotExist) Error() string {
 	return fmt.Sprintf("connector %d does not exist", err.ConnectorID)
 }
+
+// ErrNotesSlideNotExist defined an error of a slide that has no notes slide.
+type ErrNotesSlideNotExist struct {
+	SlideID int
+}
+
+// Error returns the error message on receiving the slide that has no notes
+// slide.
+func (err ErrNotesSlideNotExist) Error() string {
+	return fmt.Sprintf("the slide %d has no notes", err.SlideID)
+}
+
+// ErrNotesSlideExists defined an error of a slide that already has a notes
+// slide.
+type ErrNotesSlideExists struct {
+	SlideID int
+}
+
+// Error returns the error message on receiving the slide that already has a
+// notes slide.
+func (err ErrNotesSlideExists) Error() string {
+	return fmt.Sprintf("the slide %d already has notes", err.SlideID)
+}
+
+// ErrNotesBodyPlaceholderNotExist defined an error of a notes slide that has
+// no notes body placeholder.
+var ErrNotesBodyPlaceholderNotExist = errors.New("the notes slide has no body placeholder")
 
 // ErrImageNotExist defined an error of image relationship that does not exist.
 type ErrImageNotExist struct {

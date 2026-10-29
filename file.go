@@ -153,6 +153,7 @@ func (f *File) writeToZip(zw ZipWriter) error {
 	// TODO: MasterWritter
 	// TODO: MasterLayoutWritter
 	f.slideWriter()
+	f.notesSlideWriter()
 	f.relsWriter()
 	f.themeWriter()
 
@@ -495,324 +496,400 @@ func relationshipsEqual(a, b []relationship) bool {
 	return true
 }
 
+// newHyperlink provides a function to convert the decode hyperlink to the
+// hyperlink.
+func newHyperlink(dh *DecodeHyperlink) *Hyperlink {
+	if dh == nil {
+		return nil
+	}
+
+	return &Hyperlink{
+		ID:      dh.ID,
+		Tooltip: dh.Tooltip,
+	}
+}
+
+// newCommonNonVisualProperties provides a function to convert the decode
+// common non-visual properties to the common non-visual properties.
+func newCommonNonVisualProperties(
+	dcnvp *decodeCommonNonVisualProperties,
+) *CommonNonVisualProperties {
+	if dcnvp == nil {
+		return nil
+	}
+
+	cnvp := &CommonNonVisualProperties{
+		ID:    dcnvp.ID,
+		Name:  dcnvp.Name,
+		Title: dcnvp.Title,
+	}
+
+	if dcnvp.HlinkClick != nil {
+		cnvp.HlinkClick = &Hyperlink{
+			ID:      dcnvp.HlinkClick.ID,
+			Tooltip: dcnvp.HlinkClick.Tooltip,
+		}
+	}
+
+	if dcnvp.HlinkMouseOver != nil {
+		cnvp.HlinkMouseOver = &Hyperlink{
+			ID:      dcnvp.HlinkMouseOver.ID,
+			Tooltip: dcnvp.HlinkMouseOver.Tooltip,
+		}
+	}
+
+	if dcnvp.ExtLst != nil {
+		cnvp.ExtLst = &ExtLst{Content: dcnvp.ExtLst.Content}
+	}
+
+	return cnvp
+}
+
+// newNonVisualGroupShapeProperties provides a function to convert the decode
+// non-visual group shape properties to the non-visual group shape properties.
+func newNonVisualGroupShapeProperties(
+	nvgsp *decodeNonVisualGroupShapeProperties,
+) *NonVisualGroupShapeProperties {
+	if nvgsp == nil {
+		return nil
+	}
+
+	return &NonVisualGroupShapeProperties{
+		CommonNonVisualProperties:           newCommonNonVisualProperties(nvgsp.CommonNonVisualProperties),
+		CommonNonVisualGroupShapeProperties: nvgsp.CommonNonVisualGroupShapeProperties,
+		NonVisualProperties:                 (*NonVisualProperties)(nvgsp.NonVisualProperties),
+	}
+}
+
+// newXfrm provides a function to convert the decode transform to the
+// transform.
+func newXfrm(dx *DecodeXfrm) *Xfrm {
+	if dx == nil {
+		return nil
+	}
+
+	return &Xfrm{
+		Offset:       dx.Offset,
+		Extents:      dx.Extents,
+		ChildOffset:  dx.ChildOffset,
+		ChildExtents: dx.ChildExtents,
+	}
+}
+
+// newGroupShapeProperties provides a function to convert the decode group
+// shape properties to the group shape properties.
+func newGroupShapeProperties(c *decodeGroupShapeProperties) *GroupShapeProperties {
+	if c == nil {
+		return nil
+	}
+
+	return &GroupShapeProperties{
+		Xfrm: newXfrm(c.Xfrm),
+	}
+}
+
+// newPresetGeometry provides a function to convert the decode preset geometry
+// to the preset geometry.
+func newPresetGeometry(dpg *DecodePresetGeometry) *PresetGeometry {
+	if dpg == nil {
+		return nil
+	}
+
+	return &PresetGeometry{
+		Preset:          dpg.Preset,
+		AdjustValueList: dpg.AdjustValueList,
+	}
+}
+
+// newSolidFill provides a function to convert the decode solid fill to the
+// solid fill.
+func newSolidFill(dsf *DecodeSolidFill) *SolidFill {
+	if dsf == nil {
+		return nil
+	}
+
+	return &SolidFill{
+		SolidRGBColor: dsf.SolidRGBColor,
+	}
+}
+
+// newLine provides a function to convert the decode line to the line.
+func newLine(dl *DecodeLine) *Line {
+	if dl == nil {
+		return nil
+	}
+
+	return &Line{
+		Width:     dl.Width,
+		NoFill:    dl.NoFill,
+		SolidFill: newSolidFill(dl.SolidFill),
+		PrstDash:  dl.PrstDash,
+	}
+}
+
+// newRunProperties provides a function to convert the decode run properties
+// to the run properties.
+func newRunProperties(dr *DecodeRunProperties) *RunProperties {
+	if dr == nil {
+		return nil
+	}
+
+	rp := &RunProperties{
+		Bold:           dr.Bold,
+		Lang:           dr.Lang,
+		Size:           dr.Size,
+		Space:          dr.Space,
+		Strike:         dr.Strike,
+		Latin:          dr.Latin,
+		EastAsian:      dr.EastAsian,
+		ComplexScript:  dr.ComplexScript,
+		HlinkClick:     newHyperlink(dr.HlinkClick),
+		HlinkMouseOver: newHyperlink(dr.HlinkMouseOver),
+	}
+
+	if dr.SolidFill != nil {
+		rp.SolidFill = &SolidFill{
+			SolidRGBColor: dr.SolidFill.SolidRGBColor,
+		}
+	}
+
+	return rp
+}
+
+// newRuns provides a function to convert the decode runs to the runs.
+func newRuns(r []DecodeRuns) []Runs {
+	runs := make([]Runs, len(r))
+	for i, run := range r {
+		runs[i] = Runs{
+			RunProperties: newRunProperties(run.RunProperties),
+			Text:          run.Text,
+		}
+	}
+
+	return runs
+}
+
+// newParagraphProperties provides a function to convert the decode paragraph
+// properties to the paragraph properties.
+func newParagraphProperties(dpp *DecodeParagraphProperties) *ParagraphProperties {
+	if dpp == nil {
+		return nil
+	}
+
+	var lineSpacing *LineSpacing
+	if dpp.LineSpacing != nil {
+		lineSpacing = &LineSpacing{
+			SpacingPercent: dpp.LineSpacing.SpacingPercent,
+		}
+	}
+
+	newSpacingChange := func(dsc *DecodeSpacingChange) *SpacingChange {
+		if dsc == nil {
+			return nil
+		}
+
+		return &SpacingChange{
+			SpacingPercent: dsc.SpacingPercent,
+			SpacingPts:     dsc.SpacingPts,
+		}
+	}
+
+	newBulletFont := func(dbf *DecodeBulletFont) *BulletFont {
+		if dbf == nil {
+			return nil
+		}
+
+		return &BulletFont{
+			Typeface: dbf.Typeface,
+		}
+	}
+	newBulletChar := func(dbc *DecodeBulletChar) *BulletChar {
+		if dbc == nil {
+			return nil
+		}
+
+		return &BulletChar{
+			Char: dbc.Char,
+		}
+	}
+
+	return &ParagraphProperties{
+		Indent:           dpp.Indent,
+		Lvl:              dpp.Lvl,
+		MarL:             dpp.MarL,
+		RTL:              dpp.RTL,
+		Align:            dpp.Align,
+		LineSpacing:      lineSpacing,
+		SpacingBefore:    newSpacingChange(dpp.SpacingBefore),
+		SpacingAfter:     newSpacingChange(dpp.SpacingAfter),
+		BuFont:           newBulletFont(dpp.BuFont),
+		BuChar:           newBulletChar(dpp.BuChar),
+		BuNone:           dpp.BuNone,
+		DefRunProperties: newRunProperties(dpp.DefRunProperties),
+	}
+}
+
+// newTextBody provides a function to convert the decode text body to the text
+// body.
+func newTextBody(dt *DecodeTextBody) *TextBody {
+	if dt == nil {
+		return nil
+	}
+
+	paragraphs := make([]Paragraph, len(dt.Paragraph))
+	for i, p := range dt.Paragraph {
+		paragraphs[i] = Paragraph{
+			ParagraphProperties:       newParagraphProperties(p.ParagraphProperties),
+			Runs:                      newRuns(p.Runs),
+			EndParagraphRunProperties: newRunProperties(p.EndParagraphRunProperties),
+		}
+	}
+
+	var bodyProperties *BodyProperties
+	if dt.BodyProperties != nil {
+		bodyProperties = &BodyProperties{
+			AnchorCtr:        dt.BodyProperties.AnchorCtr,
+			Anchor:           dt.BodyProperties.Anchor,
+			BIns:             dt.BodyProperties.BIns,
+			LIns:             dt.BodyProperties.LIns,
+			SpcFirstLastPara: dt.BodyProperties.SpcFirstLastPara,
+			RIns:             dt.BodyProperties.RIns,
+			Wrap:             dt.BodyProperties.Wrap,
+			TIns:             dt.BodyProperties.TIns,
+			NormAutofit:      dt.BodyProperties.NormAutofit,
+			NoAutofit:        dt.BodyProperties.NoAutofit,
+		}
+	}
+
+	return &TextBody{
+		BodyProperties: bodyProperties,
+		ListStyle:      dt.ListStyle,
+		Paragraph:      paragraphs,
+	}
+}
+
+// newShapeProperties provides a function to convert the decode shape
+// properties to the shape properties.
+func newShapeProperties(dsp *DecodeShapeProperties) *ShapeProperties {
+	if dsp == nil {
+		return nil
+	}
+
+	return &ShapeProperties{
+		Xfrm:           newXfrm(dsp.Xfrm),
+		CustGeom:       dsp.CustGeom,
+		PresetGeometry: newPresetGeometry(dsp.PresetGeometry),
+		NoFill:         dsp.NoFill,
+		SolidFill:      newSolidFill(dsp.SolidFill),
+		Ln:             newLine(dsp.Ln),
+		EffectList:     dsp.EffectList,
+	}
+}
+
+// newNonVisualShapeProperties provides a function to convert the decode
+// non-visual shape properties to the non-visual shape properties.
+func newNonVisualShapeProperties(dnsp *decodeNonVisualShapeProperties) *NonVisualShapeProperties {
+	if dnsp == nil {
+		return nil
+	}
+
+	var commonNonVisualShapeProperties *CommonNonVisualShapeProperties
+	if dnsp.CommonNonVisualShapeProperties != nil {
+		commonNonVisualShapeProperties = &CommonNonVisualShapeProperties{
+			ShapeLocks: dnsp.CommonNonVisualShapeProperties.ShapeLocks,
+			TxBox:      boolToXMLBool(dnsp.CommonNonVisualShapeProperties.TxBox),
+		}
+	}
+
+	var nonVisualProperties *NonVisualProperties
+	if dnsp.NonVisualProperties != nil {
+		nonVisualProperties = &NonVisualProperties{
+			Ph: dnsp.NonVisualProperties.Ph,
+		}
+	}
+
+	return &NonVisualShapeProperties{
+		CommonNonVisualProperties:      newCommonNonVisualProperties(dnsp.CommonNonVisualProperties),
+		CommonNonVisualShapeProperties: commonNonVisualShapeProperties,
+		NonVisualProperties:            nonVisualProperties,
+	}
+}
+
+// newShape provides a function to convert the decode shape to the shape.
+func newShape(ds decodeShape) Shape {
+	return Shape{
+		NonVisualShapeProperties: newNonVisualShapeProperties(ds.NonVisualShapeProperties),
+		ShapeProperties:          newShapeProperties(ds.ShapeProperties),
+		TextBody:                 newTextBody(ds.TextBody),
+	}
+}
+
+// newPicture provides a function to convert the decode picture to the picture.
+func newPicture(dp decodePicture) Picture {
+	pic := Picture{}
+	if dp.NonVisualPictureProperties != nil {
+		pic.NonVisualPictureProperties = &NonVisualPictureProperties{
+			CommonNonVisualProperties:        newCommonNonVisualProperties(dp.NonVisualPictureProperties.CommonNonVisualProperties),
+			CommonNonVisualPictureProperties: dp.NonVisualPictureProperties.CommonNonVisualPictureProperties,
+			NonVisualProperties:              (*NonVisualProperties)(dp.NonVisualPictureProperties.NonVisualProperties),
+		}
+	}
+	if dp.BlipFill != nil {
+		pic.BlipFill = &BlipFill{}
+		if dp.BlipFill.Blip != nil {
+			pic.BlipFill.Blip = &Blip{
+				Embed:       dp.BlipFill.Blip.Embed,
+				AlphaModFix: dp.BlipFill.Blip.AlphaModFix,
+			}
+		}
+		if dp.BlipFill.Stretch != nil && dp.BlipFill.Stretch.FillRect != nil {
+			pic.BlipFill.Stretch = &Stretch{
+				FillRect: dp.BlipFill.Stretch.FillRect,
+			}
+		}
+	}
+	pic.ShapeProperties = newShapeProperties(dp.ShapeProperties)
+	return pic
+}
+
+// newConnector provides a function to convert the decode connector to the
+// connector.
+func newConnector(dc decodeConnector) Connector {
+	conn := Connector{}
+	if dc.NonVisualConnectorProperties != nil {
+		conn.NonVisualConnectorProperties = &NonVisualConnectorProperties{
+			CommonNonVisualProperties:          newCommonNonVisualProperties(dc.NonVisualConnectorProperties.CommonNonVisualProperties),
+			CommonNonVisualConnectorProperties: dc.NonVisualConnectorProperties.CommonNonVisualConnectorProperties,
+			NonVisualProperties:                (*NonVisualProperties)(dc.NonVisualConnectorProperties.NonVisualProperties),
+		}
+	}
+	conn.ShapeProperties = newShapeProperties(dc.ShapeProperties)
+
+	return conn
+}
+
+// newBG provides a function to convert the decode background to the
+// background.
+func newBG(db *DecodeBackground) *bg {
+	if db == nil {
+		return nil
+	}
+
+	var bgProps *bgProperties
+	if db.BGProperties != nil {
+		bgProps = &bgProperties{
+			NoFill:     db.BGProperties.NoFill,
+			SolidFill:  newSolidFill(db.BGProperties.SolidFill),
+			EffectList: db.BGProperties.EffectList,
+		}
+	}
+
+	return &bg{BGProperties: bgProps}
+}
+
 // slideWriter provides a function to save ppt/slides/slide%d.xml after
 // serialize structure.
 func (f *File) slideWriter() {
-	newCommonNonVisualProperties := func(
-		dcnvp *decodeCommonNonVisualProperties,
-	) *CommonNonVisualProperties {
-		if dcnvp == nil {
-			return nil
-		}
-		cnvp := &CommonNonVisualProperties{
-			ID:    dcnvp.ID,
-			Name:  dcnvp.Name,
-			Title: dcnvp.Title,
-		}
-		if dcnvp.ExtLst != nil {
-			cnvp.ExtLst = &ExtLst{Content: dcnvp.ExtLst.Content}
-		}
-		return cnvp
-	}
-
-	newNonVisualGroupShapeProperties := func(
-		nvgsp *decodeNonVisualGroupShapeProperties,
-	) *NonVisualGroupShapeProperties {
-		if nvgsp == nil {
-			return nil
-		}
-		return &NonVisualGroupShapeProperties{
-			CommonNonVisualProperties:           newCommonNonVisualProperties(nvgsp.CommonNonVisualProperties),
-			CommonNonVisualGroupShapeProperties: nvgsp.CommonNonVisualGroupShapeProperties,
-			NonVisualProperties:                 (*NonVisualProperties)(nvgsp.NonVisualProperties),
-		}
-	}
-
-	newXfrm := func(dx *DecodeXfrm) *Xfrm {
-		if dx == nil {
-			return nil
-		}
-
-		return &Xfrm{
-			Offset:       dx.Offset,
-			Extents:      dx.Extents,
-			ChildOffset:  dx.ChildOffset,
-			ChildExtents: dx.ChildExtents,
-		}
-	}
-
-	newGroupShapeProperties := func(c *decodeGroupShapeProperties) *GroupShapeProperties {
-		if c == nil {
-			return nil
-		}
-		return &GroupShapeProperties{
-			Xfrm: newXfrm(c.Xfrm),
-		}
-	}
-
-	newPresetGeometry := func(dpg *DecodePresetGeometry) *PresetGeometry {
-		if dpg == nil {
-			return nil
-		}
-
-		return &PresetGeometry{
-			Preset:          dpg.Preset,
-			AdjustValueList: dpg.AdjustValueList,
-		}
-	}
-
-	newSolidFill := func(dsf *DecodeSolidFill) *SolidFill {
-		if dsf == nil {
-			return nil
-		}
-
-		return &SolidFill{
-			SolidRGBColor: dsf.SolidRGBColor,
-		}
-	}
-
-	newLine := func(dl *DecodeLine) *Line {
-		if dl == nil {
-			return nil
-		}
-		return &Line{
-			Width:     dl.Width,
-			NoFill:    dl.NoFill,
-			SolidFill: newSolidFill(dl.SolidFill),
-			PrstDash:  dl.PrstDash,
-		}
-	}
-
-	newRunProperties := func(dr *DecodeRunProperties) *RunProperties {
-		if dr == nil {
-			return nil
-		}
-		rp := &RunProperties{
-			Bold:          dr.Bold,
-			Lang:          dr.Lang,
-			Size:          dr.Size,
-			Space:         dr.Space,
-			Strike:        dr.Strike,
-			Latin:         dr.Latin,
-			EastAsian:     dr.EastAsian,
-			ComplexScript: dr.ComplexScript,
-		}
-		if dr.SolidFill != nil {
-			rp.SolidFill = &SolidFill{
-				SolidRGBColor: dr.SolidFill.SolidRGBColor,
-			}
-		}
-		return rp
-	}
-
-	newRuns := func(r []DecodeRuns) []Runs {
-		runs := make([]Runs, len(r))
-		for i, run := range r {
-			runs[i] = Runs{
-				RunProperties: newRunProperties(run.RunProperties),
-				Text:          run.Text,
-			}
-		}
-
-		return runs
-	}
-
-	newParagraphProperties := func(dpp *DecodeParagraphProperties) *ParagraphProperties {
-		if dpp == nil {
-			return nil
-		}
-		var lineSpacing *LineSpacing
-		if dpp.LineSpacing != nil {
-			lineSpacing = &LineSpacing{
-				SpacingPercent: dpp.LineSpacing.SpacingPercent,
-			}
-		}
-		newSpacingChange := func(dsc *DecodeSpacingChange) *SpacingChange {
-			if dsc == nil {
-				return nil
-			}
-			return &SpacingChange{
-				SpacingPercent: dsc.SpacingPercent,
-				SpacingPts:     dsc.SpacingPts,
-			}
-		}
-		newBulletFont := func(dbf *DecodeBulletFont) *BulletFont {
-			if dbf == nil {
-				return nil
-			}
-			return &BulletFont{
-				Typeface: dbf.Typeface,
-			}
-		}
-		newBulletChar := func(dbc *DecodeBulletChar) *BulletChar {
-			if dbc == nil {
-				return nil
-			}
-			return &BulletChar{
-				Char: dbc.Char,
-			}
-		}
-		return &ParagraphProperties{
-			Indent:           dpp.Indent,
-			Lvl:              dpp.Lvl,
-			MarL:             dpp.MarL,
-			RTL:              dpp.RTL,
-			Align:            dpp.Align,
-			LineSpacing:      lineSpacing,
-			SpacingBefore:    newSpacingChange(dpp.SpacingBefore),
-			SpacingAfter:     newSpacingChange(dpp.SpacingAfter),
-			BuFont:           newBulletFont(dpp.BuFont),
-			BuChar:           newBulletChar(dpp.BuChar),
-			BuNone:           dpp.BuNone,
-			DefRunProperties: newRunProperties(dpp.DefRunProperties),
-		}
-	}
-
-	newTextBody := func(dt *DecodeTextBody) *TextBody {
-		if dt == nil {
-			return nil
-		}
-
-		paragraphs := make([]Paragraph, len(dt.Paragraph))
-		for i, p := range dt.Paragraph {
-			paragraphs[i] = Paragraph{
-				ParagraphProperties:       newParagraphProperties(p.ParagraphProperties),
-				Runs:                      newRuns(p.Runs),
-				EndParagraphRunProperties: newRunProperties(p.EndParagraphRunProperties),
-			}
-		}
-
-		var bodyProperties *BodyProperties
-		if dt.BodyProperties != nil {
-			bodyProperties = &BodyProperties{
-				AnchorCtr:        dt.BodyProperties.AnchorCtr,
-				Anchor:           dt.BodyProperties.Anchor,
-				BIns:             dt.BodyProperties.BIns,
-				LIns:             dt.BodyProperties.LIns,
-				SpcFirstLastPara: dt.BodyProperties.SpcFirstLastPara,
-				RIns:             dt.BodyProperties.RIns,
-				Wrap:             dt.BodyProperties.Wrap,
-				TIns:             dt.BodyProperties.TIns,
-				NormAutofit:      dt.BodyProperties.NormAutofit,
-				NoAutofit:        dt.BodyProperties.NoAutofit,
-			}
-		}
-
-		return &TextBody{
-			BodyProperties: bodyProperties,
-			ListStyle:      dt.ListStyle,
-			Paragraph:      paragraphs,
-		}
-	}
-
-	newShapeProperties := func(dsp *DecodeShapeProperties) *ShapeProperties {
-		if dsp == nil {
-			return nil
-		}
-
-		return &ShapeProperties{
-			Xfrm:           newXfrm(dsp.Xfrm),
-			PresetGeometry: newPresetGeometry(dsp.PresetGeometry),
-			NoFill:         dsp.NoFill,
-			SolidFill:      newSolidFill(dsp.SolidFill),
-			Ln:             newLine(dsp.Ln),
-			EffectList:     dsp.EffectList,
-		}
-	}
-
-	newNonVisualShapeProperties := func(dnsp *decodeNonVisualShapeProperties) *NonVisualShapeProperties {
-		if dnsp == nil {
-			return nil
-		}
-
-		var commonNonVisualShapeProperties *CommonNonVisualShapeProperties
-		if dnsp.CommonNonVisualShapeProperties != nil {
-			commonNonVisualShapeProperties = &CommonNonVisualShapeProperties{
-				ShapeLocks: dnsp.CommonNonVisualShapeProperties.ShapeLocks,
-				TxBox:      boolToXMLBool(dnsp.CommonNonVisualShapeProperties.TxBox),
-			}
-		}
-
-		var nonVisualProperties *NonVisualProperties
-		if dnsp.NonVisualProperties != nil {
-			nonVisualProperties = &NonVisualProperties{
-				Ph: dnsp.NonVisualProperties.Ph,
-			}
-		}
-
-		return &NonVisualShapeProperties{
-			CommonNonVisualProperties:      newCommonNonVisualProperties(dnsp.CommonNonVisualProperties),
-			CommonNonVisualShapeProperties: commonNonVisualShapeProperties,
-			NonVisualProperties:            nonVisualProperties,
-		}
-	}
-
-	newShape := func(ds decodeShape) Shape {
-		return Shape{
-			NonVisualShapeProperties: newNonVisualShapeProperties(ds.NonVisualShapeProperties),
-			ShapeProperties:          newShapeProperties(ds.ShapeProperties),
-			TextBody:                 newTextBody(ds.TextBody),
-		}
-	}
-
-	newPicture := func(dp decodePicture) Picture {
-		pic := Picture{}
-		if dp.NonVisualPictureProperties != nil {
-			pic.NonVisualPictureProperties = &NonVisualPictureProperties{
-				CommonNonVisualProperties:        newCommonNonVisualProperties(dp.NonVisualPictureProperties.CommonNonVisualProperties),
-				CommonNonVisualPictureProperties: dp.NonVisualPictureProperties.CommonNonVisualPictureProperties,
-				NonVisualProperties:              (*NonVisualProperties)(dp.NonVisualPictureProperties.NonVisualProperties),
-			}
-		}
-		if dp.BlipFill != nil {
-			pic.BlipFill = &BlipFill{}
-			if dp.BlipFill.Blip != nil {
-				pic.BlipFill.Blip = &Blip{
-					Embed:       dp.BlipFill.Blip.Embed,
-					AlphaModFix: dp.BlipFill.Blip.AlphaModFix,
-				}
-			}
-			if dp.BlipFill.Stretch != nil && dp.BlipFill.Stretch.FillRect != nil {
-				pic.BlipFill.Stretch = &Stretch{
-					FillRect: dp.BlipFill.Stretch.FillRect,
-				}
-			}
-		}
-		pic.ShapeProperties = newShapeProperties(dp.ShapeProperties)
-		return pic
-	}
-
-	newConnector := func(dc decodeConnector) Connector {
-		conn := Connector{}
-		if dc.NonVisualConnectorProperties != nil {
-			conn.NonVisualConnectorProperties = &NonVisualConnectorProperties{
-				CommonNonVisualProperties:          newCommonNonVisualProperties(dc.NonVisualConnectorProperties.CommonNonVisualProperties),
-				CommonNonVisualConnectorProperties: dc.NonVisualConnectorProperties.CommonNonVisualConnectorProperties,
-				NonVisualProperties:                (*NonVisualProperties)(dc.NonVisualConnectorProperties.NonVisualProperties),
-			}
-		}
-		conn.ShapeProperties = newShapeProperties(dc.ShapeProperties)
-
-		return conn
-	}
-
-	newBG := func(db *DecodeBackground) *bg {
-		if db == nil {
-			return nil
-		}
-
-		var bgProps *bgProperties
-		if db.BGProperties != nil {
-			bgProps = &bgProperties{
-				NoFill:     db.BGProperties.NoFill,
-				SolidFill:  newSolidFill(db.BGProperties.SolidFill),
-				EffectList: db.BGProperties.EffectList,
-			}
-		}
-
-		return &bg{BGProperties: bgProps}
-	}
-
 	var (
 		arr    []byte
 		buffer = bytes.NewBuffer(arr)
@@ -891,6 +968,61 @@ func (f *File) slideWriter() {
 				f.checked.Delete(p.(string))
 			}
 			buffer.Reset()
+		}
+		return true
+	})
+}
+
+// notesSlideWriter provides a function to save ppt/notesSlides/notesSlide%d.xml
+// after serialize structure.
+func (f *File) notesSlideWriter() {
+	f.NotesSlides.Range(func(path, notes interface{}) bool {
+		if notes != nil {
+
+			ns := notes.(*decodeNotesSlide)
+
+			var altContent *alternateContent
+			if ns.DecodeAlternateContent != nil {
+				altContent = &alternateContent{
+					Content: ns.DecodeAlternateContent.Content,
+					XMLNSMC: SourceRelationshipCompatibility.Value,
+				}
+			}
+
+			var clrMapOverride *ClrMapOverride
+			if ns.ColorMapOverride != nil {
+				clrMapOverride = &ClrMapOverride{
+					MasterClrMapping: ns.ColorMapOverride.MasterClrMapping,
+				}
+			}
+
+			shapes := make([]Shape, len(ns.CommonSlideData.ShapeTree.Shape))
+			for i, shape := range ns.CommonSlideData.ShapeTree.Shape {
+				shapes[i] = newShape(shape)
+			}
+
+			output, _ := xml.Marshal(&NotesSlide{
+				XMLName: ns.XMLName,
+				XMLNSA:  NameSpaceDrawingML.Value,
+				XMLNSP:  NameSpacePresentationML.Value,
+				XMLNSR:  SourceRelationship.Value,
+				CommonSlideData: NotesSlideData{
+					ShapeTree: NotesShapeTree{
+						NonVisualGroupShapeProperties: newNonVisualGroupShapeProperties(ns.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties),
+						GroupShapeProperties:          newGroupShapeProperties(ns.CommonSlideData.ShapeTree.GroupShapeProperties),
+						Shape:                         shapes,
+					},
+				},
+				ColorMapOverride: clrMapOverride,
+				AlternateContent: altContent,
+			})
+
+			f.saveFileList(path.(string), f.replaceNameSpaceBytes(path.(string), output))
+			_, ok := f.checked.Load(path.(string))
+			if ok {
+				f.NotesSlides.Delete(path.(string))
+				f.checked.Delete(path.(string))
+			}
 		}
 		return true
 	})
