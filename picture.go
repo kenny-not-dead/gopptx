@@ -228,7 +228,7 @@ func (f *File) AddImageFromBytes(slideID int, data []byte, opts *PictureOptions)
 				ID:   pictureID,
 				Name: name,
 			},
-			CommonNonVisualPictureProperties: &CommonNonVisualPictureProperties{
+			CommonNonVisualPictureProperties: &decodeCommonNonVisualPictureProperties{
 				PreferRelativeResize: &preferRelativeResize,
 			},
 			NonVisualProperties: &decodeNonVisualProperties{},
@@ -545,7 +545,8 @@ func (f *File) ensureImageContentType(ext, contentType string) error {
 }
 
 // nextShapeID provides a function to get the next free shape id in the slide
-// shape tree, taking into account all the shape types (sp, pic, cxnSp).
+// shape tree, taking into account all the shape types (sp, pic, cxnSp and
+// graphicFrame).
 func (f *File) nextShapeID(slide *decodeSlide) int {
 	id := defaultXMLShapeID
 	for _, s := range slide.getShapes() {
@@ -553,16 +554,25 @@ func (f *File) nextShapeID(slide *decodeSlide) int {
 			id = max(id, s.NonVisualShapeProperties.CommonNonVisualProperties.ID)
 		}
 	}
+
 	for _, pic := range slide.getPictures() {
 		if pic.NonVisualPictureProperties != nil && pic.NonVisualPictureProperties.CommonNonVisualProperties != nil {
 			id = max(id, pic.NonVisualPictureProperties.CommonNonVisualProperties.ID)
 		}
 	}
+
 	for _, conn := range slide.getConnectors() {
 		if conn.NonVisualConnectorProperties != nil && conn.NonVisualConnectorProperties.CommonNonVisualProperties != nil {
 			id = max(id, conn.NonVisualConnectorProperties.CommonNonVisualProperties.ID)
 		}
 	}
+
+	for _, gf := range slide.getGraphicFrames() {
+		if gf.NonVisualGraphicFrameProperties != nil && gf.NonVisualGraphicFrameProperties.CommonNonVisualProperties != nil {
+			id = max(id, gf.NonVisualGraphicFrameProperties.CommonNonVisualProperties.ID)
+		}
+	}
+
 	return id + 1
 }
 

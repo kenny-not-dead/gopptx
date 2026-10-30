@@ -334,3 +334,76 @@ func TestSampleDeleteImage(t *testing.T) {
 		t.Fatal("the content types part differs from the origin one")
 	}
 }
+
+// TestExtensionsRoundTrip checks that the standard elements the library used
+// to drop on save are preserved: the extension list of the common slide data
+// (p:cSld/p:extLst with the p14:creationId extension), the picture locks
+// (a:picLocks), the crop rectangle of the picture (a:srcRect) and the
+// dirty/err attributes of the run properties.
+func TestExtensionsRoundTrip(t *testing.T) {
+	fixture := filepath.Join("test", "extensions.pptx")
+	f, err := OpenFile(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	slideID := f.GetSlideList()[0]
+
+	// the crop rectangle and the locks of the picture are read back
+	pics, err := f.GetPictures(slideID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pics) != 1 {
+		t.Fatalf("expected 1 picture in the fixture, got %d", len(pics))
+	}
+	srcRect := pics[0].BlipFill.SrcRect
+	if srcRect == nil || srcRect.Left == nil || *srcRect.Left != 10 ||
+		srcRect.Top == nil || *srcRect.Top != 27 ||
+		srcRect.Right == nil || *srcRect.Right != 30 ||
+		srcRect.Bottom == nil || *srcRect.Bottom != 5 {
+		t.Fatalf("the crop rectangle of the picture is not read back: %+v", srcRect)
+	}
+	locks := pics[0].NonVisualPictureProperties.CommonNonVisualPictureProperties.PicLocks
+	if locks == nil || locks.NoChangeAspect == nil || !*locks.NoChangeAspect {
+		t.Fatal("the noChangeAspect lock of the picture is not read back")
+	}
+
+	// the dirty/err attributes of the run properties are read back
+	shapes, err := f.GetShapes(slideID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for i := range shapes {
+		body := shapes[i].TextBody
+		if body == nil {
+			continue
+		}
+		for j := range body.Paragraph {
+			rp := body.Paragraph[j].EndParagraphRunProperties
+			if rp == nil || rp.Dirty == nil || rp.Err == nil {
+				continue
+			}
+			found = true
+			if *rp.Dirty {
+				t.Fatal("the dirty attribute of the run properties is not read back")
+			}
+			if !*rp.Err {
+				t.Fatal("the err attribute of the run properties is not read back")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the dirty/err attributes of the run properties are not read back")
+	}
+
+	out := filepath.Join(t.TempDir(), "extensions.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertPartsEqual(t, fixture, out); err != nil {
+		t.Error(err)
+	}
+}

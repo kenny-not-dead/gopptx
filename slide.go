@@ -398,6 +398,9 @@ const (
 	ShapeOrderPic = "pic"
 	// ShapeOrderCxnSp is the kind of the p:cxnSp child of the shape tree.
 	ShapeOrderCxnSp = "cxnSp"
+	// ShapeOrderGraphicFrame is the kind of the p:graphicFrame child of the
+	// shape tree (the table, the chart).
+	ShapeOrderGraphicFrame = "graphicFrame"
 )
 
 // GetShapeOrder provides a function to get the order (the z-order) of the
@@ -535,6 +538,16 @@ func shapeOrderOf(child *decodeShapeTreeChild) (ShapeOrder, bool) {
 		return ShapeOrder{
 			Kind: ShapeOrderCxnSp,
 			ID:   child.Connector.NonVisualConnectorProperties.CommonNonVisualProperties.ID,
+		}, true
+	case child.GraphicFrame != nil:
+		if child.GraphicFrame.NonVisualGraphicFrameProperties == nil ||
+			child.GraphicFrame.NonVisualGraphicFrameProperties.CommonNonVisualProperties == nil {
+			return ShapeOrder{}, false
+		}
+
+		return ShapeOrder{
+			Kind: ShapeOrderGraphicFrame,
+			ID:   child.GraphicFrame.NonVisualGraphicFrameProperties.CommonNonVisualProperties.ID,
 		}, true
 	}
 

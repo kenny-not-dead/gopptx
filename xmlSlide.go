@@ -30,6 +30,7 @@ type Slide struct {
 type SlideData struct {
 	Background *bg       `xml:"p:bg,omitempty"`
 	ShapeTree  ShapeTree `xml:"p:spTree"`
+	ExtLst     *ExtLst   `xml:"p:extLst,omitempty"`
 }
 
 // bg defines the slide background (p:bg) element of the common slide data.
@@ -51,6 +52,7 @@ const (
 	shapeTreeChildSp shapeTreeChildKind = iota
 	shapeTreeChildPic
 	shapeTreeChildCxnSp
+	shapeTreeChildGraphicFrame
 )
 
 // shapeTreeOrderEntry is one entry of the document order of the shape tree
@@ -67,10 +69,11 @@ type ShapeTree struct {
 	Shape                         []Shape                        `xml:"p:sp"`
 	Picture                       []Picture                      `xml:"p:pic"`
 	Connector                     []Connector                    `xml:"p:cxnSp"`
-	// shapeOrder is the document order of the children (sp/pic/cxnSp) of
-	// the shape tree, the z-order of the shapes; when it is empty (the
-	// shape tree is built without the document order) the children are
-	// emitted as blocks in the struct field order
+	GraphicFrame                  []GraphicFrame                 `xml:"p:graphicFrame"`
+	// shapeOrder is the document order of the children (sp/pic/cxnSp/
+	// graphicFrame) of the shape tree, the z-order of the shapes; when it
+	// is empty (the shape tree is built without the document order) the
+	// children are emitted as blocks in the struct field order
 	shapeOrder []shapeTreeOrderEntry
 }
 
@@ -122,6 +125,11 @@ func (st ShapeTree) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 				return err
 			}
 		}
+		for i := range st.GraphicFrame {
+			if err := emit("p:graphicFrame", &st.GraphicFrame[i]); err != nil {
+				return err
+			}
+		}
 	} else {
 		for i := range st.shapeOrder {
 			entry := &st.shapeOrder[i]
@@ -136,6 +144,10 @@ func (st ShapeTree) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 				}
 			case shapeTreeChildCxnSp:
 				if err := emit("p:cxnSp", &st.Connector[entry.index]); err != nil {
+					return err
+				}
+			case shapeTreeChildGraphicFrame:
+				if err := emit("p:graphicFrame", &st.GraphicFrame[entry.index]); err != nil {
 					return err
 				}
 			}
@@ -196,7 +208,14 @@ type NonVisualPictureProperties struct {
 // CommonNonVisualPictureProperties defines the common non-visual properties
 // of a picture (p:cNvPicPr).
 type CommonNonVisualPictureProperties struct {
-	PreferRelativeResize *int `xml:"preferRelativeResize,attr,omitempty"`
+	PreferRelativeResize *int      `xml:"preferRelativeResize,attr,omitempty"`
+	PicLocks             *PicLocks `xml:"a:picLocks,omitempty"`
+}
+
+// PicLocks defines the picture locks (a:picLocks) element of the common
+// non-visual properties of the picture.
+type PicLocks struct {
+	NoChangeAspect *XMLBool `xml:"noChangeAspect,attr,omitempty"`
 }
 
 // Connector defines a connector shape (p:cxnSp) in the slide shape tree.
@@ -220,7 +239,17 @@ type CommonNonVisualConnectorProperties struct{}
 // BlipFill defines the blip fill (p:blipFill) element of a picture.
 type BlipFill struct {
 	Blip    *Blip    `xml:"a:blip"`
+	SrcRect *SrcRect `xml:"a:srcRect,omitempty"`
 	Stretch *Stretch `xml:"a:stretch"`
+}
+
+// SrcRect defines the source rectangle (a:srcRect) element of the blip fill:
+// the crop of the source image, in thousandths of a percent (ST_Percentage).
+type SrcRect struct {
+	Left   *int `xml:"l,attr,omitempty"`
+	Top    *int `xml:"t,attr,omitempty"`
+	Right  *int `xml:"r,attr,omitempty"`
+	Bottom *int `xml:"b,attr,omitempty"`
 }
 
 // Blip defines the blip (a:blip) element of the blip fill. The image part is
@@ -370,6 +399,8 @@ type RunProperties struct {
 	Size           *int       `xml:"sz,attr,omitempty"`
 	Space          *int       `xml:"spc,attr,omitempty"`
 	Strike         string     `xml:"strike,attr,omitempty"`
+	Dirty          *XMLBool   `xml:"dirty,attr,omitempty"`
+	Err            *XMLBool   `xml:"err,attr,omitempty"`
 	SolidFill      *SolidFill `xml:"a:solidFill,omitempty"`
 	Latin          *Font      `xml:"a:latin,omitempty"`
 	EastAsian      *Font      `xml:"a:ea,omitempty"`
@@ -398,6 +429,7 @@ type decodeClrMapOverride struct {
 type decodeSlideData struct {
 	Background *DecodeBackground `xml:"bg,omitempty"`
 	ShapeTree  decodeShapeTree   `xml:"spTree"`
+	ExtLst     *innerXML         `xml:"extLst,omitempty"`
 }
 
 // DecodeBackground directly maps the bg element of the slide.
@@ -415,9 +447,10 @@ type DecodeBGProperties struct {
 // decodeShapeTreeChild is a single node of the shape tree in the document
 // order. Exactly one of the fields is set.
 type decodeShapeTreeChild struct {
-	Shape     *decodeShape
-	Picture   *decodePicture
-	Connector *decodeConnector
+	Shape        *decodeShape
+	Picture      *decodePicture
+	Connector    *decodeConnector
+	GraphicFrame *decodeGraphicFrame
 }
 
 type decodeShapeTree struct {
@@ -469,9 +502,15 @@ func (dst *decodeShapeTree) UnmarshalXML(d *xml.Decoder, start xml.StartElement)
 					return err
 				}
 				dst.Children = append(dst.Children, decodeShapeTreeChild{Connector: c})
+			case "graphicFrame":
+				gf := new(decodeGraphicFrame)
+				if err := d.DecodeElement(gf, &t); err != nil {
+					return err
+				}
+				dst.Children = append(dst.Children, decodeShapeTreeChild{GraphicFrame: gf})
 			default:
-				// unknown child of the shape tree (grpSp, graphicFrame, ...):
-				// it is not modeled and is not preserved, the same as before
+				// unknown child of the shape tree (grpSp, ...): it is not
+				// modeled and is not preserved, the same as before
 				if err := d.Skip(); err != nil {
 					return err
 				}
@@ -552,9 +591,22 @@ type decodePicture struct {
 // decodeNonVisualPictureProperties directly maps the nvPicPr element of the
 // picture.
 type decodeNonVisualPictureProperties struct {
-	CommonNonVisualProperties        *decodeCommonNonVisualProperties  `xml:"cNvPr"`
-	CommonNonVisualPictureProperties *CommonNonVisualPictureProperties `xml:"cNvPicPr"`
-	NonVisualProperties              *decodeNonVisualProperties        `xml:"nvPr"`
+	CommonNonVisualProperties        *decodeCommonNonVisualProperties        `xml:"cNvPr"`
+	CommonNonVisualPictureProperties *decodeCommonNonVisualPictureProperties `xml:"cNvPicPr"`
+	NonVisualProperties              *decodeNonVisualProperties              `xml:"nvPr"`
+}
+
+// decodeCommonNonVisualPictureProperties directly maps the cNvPicPr element
+// of the picture.
+type decodeCommonNonVisualPictureProperties struct {
+	PreferRelativeResize *int            `xml:"preferRelativeResize,attr,omitempty"`
+	PicLocks             *decodePicLocks `xml:"picLocks,omitempty"`
+}
+
+// decodePicLocks directly maps the picLocks element of the cNvPicPr element
+// of the picture.
+type decodePicLocks struct {
+	NoChangeAspect *XMLBool `xml:"noChangeAspect,attr,omitempty"`
 }
 
 // decodeConnector directly maps the cxnSp element in the shape tree.
@@ -585,6 +637,7 @@ type decodeCommonNonVisualProperties struct {
 // decodeBlipFill directly maps the blipFill element of the picture.
 type decodeBlipFill struct {
 	Blip    *decodeBlip    `xml:"blip"`
+	SrcRect *SrcRect       `xml:"srcRect,omitempty"`
 	Stretch *decodeStretch `xml:"stretch"`
 }
 
@@ -739,6 +792,8 @@ type DecodeRunProperties struct {
 	Size           *int             `xml:"sz,attr,omitempty"`
 	Space          *int             `xml:"spc,attr,omitempty"`
 	Strike         string           `xml:"strike,attr,omitempty"`
+	Dirty          *XMLBool         `xml:"dirty,attr,omitempty"`
+	Err            *XMLBool         `xml:"err,attr,omitempty"`
 	SolidFill      *DecodeSolidFill `xml:"solidFill,omitempty"`
 	Latin          *Font            `xml:"latin,omitempty"`
 	EastAsian      *Font            `xml:"ea,omitempty"`
