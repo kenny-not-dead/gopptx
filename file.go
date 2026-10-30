@@ -640,6 +640,8 @@ func newRunProperties(dr *DecodeRunProperties) *RunProperties {
 		Size:           dr.Size,
 		Space:          dr.Space,
 		Strike:         dr.Strike,
+		Dirty:          dr.Dirty,
+		Err:            dr.Err,
 		Latin:          dr.Latin,
 		EastAsian:      dr.EastAsian,
 		ComplexScript:  dr.ComplexScript,
@@ -830,7 +832,7 @@ func newPicture(dp decodePicture) Picture {
 	if dp.NonVisualPictureProperties != nil {
 		pic.NonVisualPictureProperties = &NonVisualPictureProperties{
 			CommonNonVisualProperties:        newCommonNonVisualProperties(dp.NonVisualPictureProperties.CommonNonVisualProperties),
-			CommonNonVisualPictureProperties: dp.NonVisualPictureProperties.CommonNonVisualPictureProperties,
+			CommonNonVisualPictureProperties: newCommonNonVisualPictureProperties(dp.NonVisualPictureProperties.CommonNonVisualPictureProperties),
 			NonVisualProperties:              (*NonVisualProperties)(dp.NonVisualPictureProperties.NonVisualProperties),
 		}
 	}
@@ -842,6 +844,14 @@ func newPicture(dp decodePicture) Picture {
 				AlphaModFix: dp.BlipFill.Blip.AlphaModFix,
 			}
 		}
+		if dp.BlipFill.SrcRect != nil {
+			pic.BlipFill.SrcRect = &SrcRect{
+				Left:   dp.BlipFill.SrcRect.Left,
+				Top:    dp.BlipFill.SrcRect.Top,
+				Right:  dp.BlipFill.SrcRect.Right,
+				Bottom: dp.BlipFill.SrcRect.Bottom,
+			}
+		}
 		if dp.BlipFill.Stretch != nil && dp.BlipFill.Stretch.FillRect != nil {
 			pic.BlipFill.Stretch = &Stretch{
 				FillRect: dp.BlipFill.Stretch.FillRect,
@@ -850,6 +860,39 @@ func newPicture(dp decodePicture) Picture {
 	}
 	pic.ShapeProperties = newShapeProperties(dp.ShapeProperties)
 	return pic
+}
+
+// newCommonNonVisualPictureProperties provides a function to convert the
+// decode common non-visual picture properties to the common non-visual
+// picture properties.
+func newCommonNonVisualPictureProperties(
+	dc *decodeCommonNonVisualPictureProperties,
+) *CommonNonVisualPictureProperties {
+	if dc == nil {
+		return nil
+	}
+
+	cnvp := &CommonNonVisualPictureProperties{
+		PreferRelativeResize: dc.PreferRelativeResize,
+	}
+
+	if dc.PicLocks != nil {
+		cnvp.PicLocks = &PicLocks{
+			NoChangeAspect: dc.PicLocks.NoChangeAspect,
+		}
+	}
+
+	return cnvp
+}
+
+// newSlideDataExtLst provides a function to convert the raw extension list
+// of the common slide data to the extension list.
+func newSlideDataExtLst(raw *innerXML) *ExtLst {
+	if raw == nil {
+		return nil
+	}
+
+	return &ExtLst{Content: raw.Content}
 }
 
 // newConnector provides a function to convert the decode connector to the
@@ -899,14 +942,16 @@ func (f *File) slideWriter() {
 
 			ds := slide.(*decodeSlide)
 
-			// the shapes, the pictures and the connectors of the shape tree;
-			// the document order of the children (the z-order) is recorded in
-			// the order of the shape tree and is preserved on save
+			// the shapes, the pictures, the connectors and the graphic
+			// frames of the shape tree; the document order of the children
+			// (the z-order) is recorded in the order of the shape tree and
+			// is preserved on save
 			var (
-				shapes     []Shape
-				pictures   []Picture
-				connectors []Connector
-				order      []shapeTreeOrderEntry
+				shapes        []Shape
+				pictures      []Picture
+				connectors    []Connector
+				graphicFrames []GraphicFrame
+				order         []shapeTreeOrderEntry
 			)
 			for i := range ds.CommonSlideData.ShapeTree.Children {
 				child := &ds.CommonSlideData.ShapeTree.Children[i]
@@ -920,6 +965,9 @@ func (f *File) slideWriter() {
 				case child.Connector != nil:
 					connectors = append(connectors, newConnector(*child.Connector))
 					order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildCxnSp, index: len(connectors) - 1})
+				case child.GraphicFrame != nil:
+					graphicFrames = append(graphicFrames, newGraphicFrame(*child.GraphicFrame))
+					order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildGraphicFrame, index: len(graphicFrames) - 1})
 				}
 			}
 
@@ -954,8 +1002,10 @@ func (f *File) slideWriter() {
 						Shape:                         shapes,
 						Picture:                       pictures,
 						Connector:                     connectors,
+						GraphicFrame:                  graphicFrames,
 						shapeOrder:                    order,
 					},
+					ExtLst: newSlideDataExtLst(ds.CommonSlideData.ExtLst),
 				},
 				ColorMapOverride: clrMapOverride,
 				AlternateContent: altContent,

@@ -44,6 +44,9 @@ var (
 	// ErrShapeHyperlinkAmbiguous is returned when the shape contains runs
 	// with different hyperlinks, so the hyperlink of the shape is ambiguous.
 	ErrShapeHyperlinkAmbiguous = errors.New("the shape contains runs with different hyperlinks")
+	// ErrTableInvalidSize is returned when the given size of the new table
+	// is invalid: the table must have at least one row and one column.
+	ErrTableInvalidSize = errors.New("the table must have at least one row and one column")
 )
 
 // ErrSlideNotExist defined an error of slide that does not exist.
@@ -94,6 +97,29 @@ type ErrConnectorNotExist struct {
 // Error returns the error message on receiving the non existing connector.
 func (err ErrConnectorNotExist) Error() string {
 	return fmt.Sprintf("connector %d does not exist", err.ConnectorID)
+}
+
+// ErrTableNotExist defined an error of table that does not exist.
+type ErrTableNotExist struct {
+	TableID int
+}
+
+// Error returns the error message on receiving the non existing table.
+func (err ErrTableNotExist) Error() string {
+	return fmt.Sprintf("table %d does not exist", err.TableID)
+}
+
+// ErrTableCellInvalid defined an error of a table cell that is out of the
+// bounds of the table.
+type ErrTableCellInvalid struct {
+	Row int
+	Col int
+}
+
+// Error returns the error message on receiving the table cell out of the
+// bounds of the table.
+func (err ErrTableCellInvalid) Error() string {
+	return fmt.Sprintf("the table cell (%d, %d) does not exist", err.Row, err.Col)
 }
 
 // ErrNotesSlideNotExist defined an error of a slide that has no notes slide.
