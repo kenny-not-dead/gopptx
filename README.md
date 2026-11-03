@@ -436,6 +436,262 @@ together with the shapes and the pictures, including the line properties
 (`a:ln`: width, color, dash style) and the `a16:creationId` extension
 (`p:cNvPr/a:extLst`).
 
+### Working with tables
+
+Tables in a presentation are stored as the `a:tbl` element of the
+`p:graphicFrame` shape of the slide shape tree. The following constitutes the
+bare to add a table, set a cell, read the tables of the slide and delete a
+table.
+
+```go
+package main
+
+import (
+    "fmt"
+
+    "github.com/kenny-not-dead/gopptx"
+)
+
+func main() {
+    f, err := gopptx.OpenFile("presentation.pptx")
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    defer func() {
+        // Close the presentation.
+        if err := f.Close(); err != nil {
+            fmt.Println(err)
+        }
+    }()
+
+    // Add a table to the slide, the new graphic frame is appended to the end
+    // of the shape tree (by default the table is centered, taking 80% of the
+    // slide size).
+    tableID, err := f.AddTable(256, &gopptx.TableOptions{
+        Rows: 3,
+        Cols: 2,
+        Name: "Table 1",
+    })
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    fmt.Println("added the table", tableID)
+
+    // Set the text of the cell (0, 0).
+    if err := f.SetTableCellText(256, tableID, 0, 0, "Hello"); err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    // Get the tables (the p:graphicFrame shapes with the a:tbl element) of
+    // the slide: the graphic frames are returned by value, the same way
+    // GetShapes returns the shapes, and the table data (a:tbl) is in the
+    // graphic data.
+    tables, err := f.GetTables(256)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    for _, table := range tables {
+        nv := table.NonVisualGraphicFrameProperties.CommonNonVisualProperties
+        fmt.Println(nv.ID, nv.Name, len(table.Graphic.GraphicData.Table.TableRows))
+    }
+
+    // Get a single table by the id attribute of its p:cNvPr element.
+    if table, err := f.GetTable(256, tableID); err != nil {
+        fmt.Println(err)
+        return
+    } else {
+        nv := table.NonVisualGraphicFrameProperties.CommonNonVisualProperties
+        fmt.Println(nv.ID, nv.Name)
+    }
+
+    // Delete the table by the slide id and the table id.
+    if err := f.DeleteTable(256, tableID); err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    // Save the presentation with the origin path.
+    if err := f.Save(); err != nil {
+        fmt.Println(err)
+        return
+    }
+}
+```
+
+When a slide is modified and saved, the tables of the slide are preserved
+together with the shapes and the pictures: the unmodified table is written
+back byte for byte (the raw content of the graphic data), the modified table
+is serialized from the model.
+
+### Working with charts
+
+Charts in a presentation are stored as chart parts (`ppt/charts/chartN.xml`,
+the `c:chartSpace` element) and are referenced from the slide by the
+`c:chart` element of the `p:graphicFrame` shape and the chart relationship
+in the slide rels part. The following constitutes the bare to add a chart,
+read the charts of the slide and delete a chart.
+
+```go
+package main
+
+import (
+    "fmt"
+
+    "github.com/kenny-not-dead/gopptx"
+)
+
+func main() {
+    f, err := gopptx.OpenFile("presentation.pptx")
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    defer func() {
+        // Close the presentation.
+        if err := f.Close(); err != nil {
+            fmt.Println(err)
+        }
+    }()
+
+    // Add a column chart to the slide: the data of the series is stored in
+    // the cache of the new chart part (no embedded workbook), the chart
+    // part, its content type and the chart relationship are created
+    // automatically, the new graphic frame is appended to the end of the
+    // shape tree.
+    chartID, err := f.AddChart(256,
+        []string{"2024", "2025", "2026"},
+        []gopptx.ChartSeries{
+            {Name: "Revenue", Values: []float64{120, 180, 250}},
+            {Name: "Costs", Values: []float64{80, 95, 120}},
+        },
+        &gopptx.ChartOptions{Title: "Revenue and costs"})
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    fmt.Println("added the chart", chartID)
+
+    // Get the charts (the p:graphicFrame shapes with the c:chart reference)
+    // of the slide: the graphic frames are returned by value, the same way
+    // GetShapes returns the shapes, and the reference to the chart part (the
+    // relationship id in the slide rels part) is in the graphic data.
+    charts, err := f.GetCharts(256)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    for _, chart := range charts {
+        nv := chart.NonVisualGraphicFrameProperties.CommonNonVisualProperties
+        fmt.Println(nv.ID, nv.Name, chart.Graphic.GraphicData.Chart.ID)
+    }
+
+    // Get a single chart by the id attribute of the p:cNvPr element of its
+    // graphic frame.
+    if chart, err := f.GetChart(256, chartID); err != nil {
+        fmt.Println(err)
+        return
+    } else {
+        fmt.Println(chart.Graphic.GraphicData.Chart.ID)
+    }
+
+    // Add a chart from the data of an existing chart part (any chart type),
+    // the reference to the external data (the embedded workbook) is removed
+    // from the given data.
+    if _, err := f.AddChartFromBytes(256, chartPartData, nil); err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    // Delete the chart by the slide id and the chart id: the graphic frame
+    // and the chart relationship are removed, the chart part (and the
+    // embedded workbook, when no other part references it) is removed from
+    // the package.
+    if err := f.DeleteChart(256, chartID); err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    // Save the presentation with the origin path.
+    if err := f.Save(); err != nil {
+        fmt.Println(err)
+        return
+    }
+}
+```
+
+When a slide is modified and saved, the charts of the slide are preserved
+together with the shapes and the pictures: the unmodified graphic frame (the
+`c:chart` reference) and the chart part are written back byte for byte.
+
+### Working with text
+
+The text of a shape is a text body (`p:txBody`) with the paragraphs, and the
+paragraphs have the runs, the line breaks (`a:br`) and the fields (`a:fld`)
+in the document order. The following constitutes the bare to set the plain
+text of the shape (one run per line, a line break between the lines) and to
+add the slide number field of the paragraph.
+
+```go
+package main
+
+import (
+    "fmt"
+
+    "github.com/kenny-not-dead/gopptx"
+)
+
+func main() {
+    f, err := gopptx.OpenFile("presentation.pptx")
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    defer func() {
+        // Close the presentation.
+        if err := f.Close(); err != nil {
+            fmt.Println(err)
+        }
+    }()
+
+    // Set the text of the shape: the text is set as a single paragraph with
+    // one run per line and a line break (a:br) between the lines, the body
+    // properties of the current text body are kept.
+    if err := f.SetShapeText(256, 8, "Line 1\nLine 2"); err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    // The slide number field of the paragraph: the field shows the number
+    // of the slide in which it is placed, updated by PowerPoint. The id of
+    // the field is a new random GUID.
+    field := gopptx.NewSlideNumberField()
+    if err := f.SetShapeTextBody(256, 9, gopptx.DecodeTextBody{
+        BodyProperties: &gopptx.DecodeBodyProperties{},
+        Paragraph: []gopptx.DecodeParagraph{{
+            Field: []gopptx.DecodeField{field},
+        }},
+    }); err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    // Save the presentation with the origin path.
+    if err := f.Save(); err != nil {
+        fmt.Println(err)
+        return
+    }
+}
+```
+
+When a slide is modified and saved, the text of the slide is preserved
+together with the shapes and the pictures, including the line breaks, the
+fields (for example the slide number field of the type `slidenum`) and the
+document order of the children of the paragraphs.
+
 ## Contributing
 
 Contributions are welcome! Open a pull request to fix a bug, or open an issue to discuss a new feature or change. XML is compliant with [part 1 of the 5th edition of the ECMA-376 Standard for Office Open XML](https://www.ecma-international.org/publications-and-standards/standards/ecma-376/).

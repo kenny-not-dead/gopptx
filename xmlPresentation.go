@@ -117,8 +117,9 @@ type decodeSlideID struct {
 }
 
 type slideSize struct {
-	CY int `xml:"cy,attr"`
-	CX int `xml:"cx,attr"`
+	CY   int     `xml:"cy,attr"`
+	CX   int     `xml:"cx,attr"`
+	Type *string `xml:"type,attr,omitempty"`
 }
 
 type notesSize struct {

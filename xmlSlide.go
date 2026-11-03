@@ -8,7 +8,9 @@
 package gopptx
 
 import (
+	crand "crypto/rand"
 	"encoding/xml"
+	"fmt"
 	"sync"
 )
 
@@ -336,6 +338,7 @@ type BodyProperties struct {
 	Wrap             *string      `xml:"wrap,attr,omitempty"`
 	TIns             *int         `xml:"tIns,attr,omitempty"`
 	NormAutofit      *NormAutofit `xml:"a:normAutofit,omitempty"`
+	SpAutoFit        *struct{}    `xml:"a:spAutoFit,omitempty"`
 	NoAutofit        *NoAutofit   `xml:"a:noAutofit,omitempty"`
 }
 
@@ -349,7 +352,97 @@ type NormAutofit struct {
 type Paragraph struct {
 	ParagraphProperties       *ParagraphProperties `xml:"a:pPr,omitempty"`
 	Runs                      []Runs               `xml:"a:r"`
+	Breaks                    []Br                 `xml:"a:br"`
+	Field                     []Field              `xml:"a:fld"`
 	EndParagraphRunProperties *RunProperties       `xml:"a:endParaRPr,omitempty"`
+	paragraphOrder            []paragraphOrderEntry
+}
+
+// MarshalXML writes the paragraph, keeping the document order of the runs,
+// the line breaks and the fields, so the text of a modified shape is
+// preserved on save. The element names are written with the literal
+// prefixes, the same way the struct tags of the slide do it.
+func (p Paragraph) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Name = xml.Name{Local: "a:p"}
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+
+	if p.ParagraphProperties != nil {
+		if err := e.EncodeElement(p.ParagraphProperties, xml.StartElement{
+			Name: xml.Name{Local: "a:pPr"},
+		}); err != nil {
+			return err
+		}
+	}
+
+	emit := func(name string, v interface{}) error {
+		return e.EncodeElement(v, xml.StartElement{Name: xml.Name{Local: name}})
+	}
+
+	if len(p.paragraphOrder) == 0 {
+		// the document order is not recorded: the children are emitted as
+		// blocks in the struct field order
+		for i := range p.Runs {
+			if err := emit("a:r", &p.Runs[i]); err != nil {
+				return err
+			}
+		}
+		for i := range p.Breaks {
+			if err := emit("a:br", &p.Breaks[i]); err != nil {
+				return err
+			}
+		}
+		for i := range p.Field {
+			if err := emit("a:fld", &p.Field[i]); err != nil {
+				return err
+			}
+		}
+	} else {
+		for i := range p.paragraphOrder {
+			entry := &p.paragraphOrder[i]
+			switch entry.kind {
+			case paragraphOrderRun:
+				if err := emit("a:r", &p.Runs[entry.index]); err != nil {
+					return err
+				}
+			case paragraphOrderBr:
+				if err := emit("a:br", &p.Breaks[entry.index]); err != nil {
+					return err
+				}
+			case paragraphOrderField:
+				if err := emit("a:fld", &p.Field[entry.index]); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if p.EndParagraphRunProperties != nil {
+		if err := e.EncodeElement(p.EndParagraphRunProperties, xml.StartElement{
+			Name: xml.Name{Local: "a:endParaRPr"},
+		}); err != nil {
+			return err
+		}
+	}
+
+	return e.EncodeToken(xml.EndElement{Name: start.Name})
+}
+
+// Br defines the line break (a:br) element of the paragraph.
+type Br struct {
+	RunProperties *RunProperties `xml:"a:rPr,omitempty"`
+}
+
+// Field defines the field (a:fld) element of the paragraph, for example the
+// slide number field (the type "slidenum"). The id of the field is a GUID,
+// the type is the type of the field (ST_TextField), and the text is the
+// cached value of the field updated by PowerPoint.
+type Field struct {
+	ID            string         `xml:"id,attr"`
+	Type          string         `xml:"type,attr"`
+	RunProperties *RunProperties `xml:"a:rPr,omitempty"`
+	Text          string         `xml:"a:t"`
 }
 
 // ParagraphProperties defines the paragraph properties (a:pPr) element of
@@ -716,15 +809,149 @@ type DecodeBodyProperties struct {
 	Wrap             *string      `xml:"wrap,attr,omitempty"`
 	TIns             *int         `xml:"tIns,attr,omitempty"`
 	NormAutofit      *NormAutofit `xml:"normAutofit,omitempty"`
+	SpAutoFit        *struct{}    `xml:"spAutoFit,omitempty"`
 	NoAutofit        *NoAutofit   `xml:"noAutofit,omitempty"`
 }
 
 type NoAutofit struct{}
 
+// paragraphOrderKind is the kind of a child of the paragraph.
+type paragraphOrderKind int
+
+const (
+	paragraphOrderRun paragraphOrderKind = iota
+	paragraphOrderBr
+	paragraphOrderField
+)
+
+// paragraphOrderEntry is one entry of the document order of the paragraph
+// children (the runs, the line breaks and the fields): the kind of the child
+// and the index of the element in the corresponding slice of the paragraph.
+type paragraphOrderEntry struct {
+	kind  paragraphOrderKind
+	index int
+}
+
+// DecodeParagraph directly maps the p element of the text body: the
+// paragraph properties, the runs, the line breaks (a:br) and the fields
+// (a:fld, for example the slide number field) in the document order, and the
+// end paragraph run properties.
 type DecodeParagraph struct {
 	ParagraphProperties       *DecodeParagraphProperties `xml:"pPr,omitempty"`
 	Runs                      []DecodeRuns               `xml:"r"`
+	Breaks                    []DecodeBr                 `xml:"br"`
+	Field                     []DecodeField              `xml:"fld"`
 	EndParagraphRunProperties *DecodeRunProperties       `xml:"endParaRPr,omitempty"`
+	// paragraphOrder is the document order of the children (the runs, the
+	// line breaks and the fields) of the paragraph, the same way the shape
+	// tree keeps the document order of the shapes; when it is empty (the
+	// paragraph is built by the caller) the children are emitted as blocks
+	// in the field order: the runs, then the line breaks, then the fields
+	paragraphOrder []paragraphOrderEntry
+}
+
+// UnmarshalXML reads the paragraph element, keeping the document order of
+// the runs, the line breaks and the fields, so the text of a modified shape
+// is preserved on save.
+func (dst *DecodeParagraph) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	for {
+		token, err := d.Token()
+		if err != nil {
+			return err
+		}
+
+		switch t := token.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "pPr":
+				pPr := new(DecodeParagraphProperties)
+				if err := d.DecodeElement(pPr, &t); err != nil {
+					return err
+				}
+				dst.ParagraphProperties = pPr
+			case "r":
+				run := new(DecodeRuns)
+				if err := d.DecodeElement(run, &t); err != nil {
+					return err
+				}
+				dst.Runs = append(dst.Runs, *run)
+				dst.paragraphOrder = append(dst.paragraphOrder, paragraphOrderEntry{kind: paragraphOrderRun, index: len(dst.Runs) - 1})
+			case "br":
+				br := new(DecodeBr)
+				if err := d.DecodeElement(br, &t); err != nil {
+					return err
+				}
+				dst.Breaks = append(dst.Breaks, *br)
+				dst.paragraphOrder = append(dst.paragraphOrder, paragraphOrderEntry{kind: paragraphOrderBr, index: len(dst.Breaks) - 1})
+			case "fld":
+				fld := new(DecodeField)
+				if err := d.DecodeElement(fld, &t); err != nil {
+					return err
+				}
+				dst.Field = append(dst.Field, *fld)
+				dst.paragraphOrder = append(dst.paragraphOrder, paragraphOrderEntry{kind: paragraphOrderField, index: len(dst.Field) - 1})
+			case "endParaRPr":
+				rp := new(DecodeRunProperties)
+				if err := d.DecodeElement(rp, &t); err != nil {
+					return err
+				}
+				dst.EndParagraphRunProperties = rp
+			default:
+				// unknown child of the paragraph: it is not modeled and is
+				// not preserved, the same as before
+				if err := d.Skip(); err != nil {
+					return err
+				}
+			}
+		case xml.EndElement:
+			return nil
+		}
+	}
+}
+
+// DecodeBr directly maps the br element of the paragraph: the line break.
+type DecodeBr struct {
+	RunProperties *DecodeRunProperties `xml:"rPr,omitempty"`
+}
+
+// DecodeField directly maps the fld element of the paragraph: the field,
+// for example the slide number field (the type "slidenum"). The id of the
+// field is a GUID, the type is the type of the field (ST_TextField), and the
+// text is the cached value of the field updated by PowerPoint.
+type DecodeField struct {
+	ID            string               `xml:"id,attr"`
+	Type          string               `xml:"type,attr"`
+	RunProperties *DecodeRunProperties `xml:"rPr,omitempty"`
+	Text          string               `xml:"t"`
+}
+
+// FieldSlideNumber is the value of the type attribute of the field (a:fld)
+// element: the field shows the number of the slide in which it is placed,
+// updated by PowerPoint.
+const FieldSlideNumber = "slidenum"
+
+// NewSlideNumberField provides a function to create the slide number field
+// (the a:fld element of the type "slidenum") of the paragraph. The id of the
+// field is a new random GUID, the text is the cached value shown before the
+// field is updated by PowerPoint.
+func NewSlideNumberField() DecodeField {
+	return DecodeField{
+		ID:            newGUID(),
+		Type:          FieldSlideNumber,
+		RunProperties: &DecodeRunProperties{Lang: "en-US"},
+		Text:          "1",
+	}
+}
+
+// newGUID provides a function to generate a random GUID (RFC 4122, version
+// 4) in the upper-case braced form (the same form the ids of the fields
+// (a:fld) and the table styles written by PowerPoint use).
+func newGUID() string {
+	b := make([]byte, 16)
+	_, _ = crand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("{%X-%X-%X-%X-%X}", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // DecodeParagraphProperties directly maps the pPr element of the paragraph.
