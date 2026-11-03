@@ -16,6 +16,10 @@ import (
 // a:graphicData element that contains a table (a:tbl).
 const graphicDataURITable = "http://schemas.openxmlformats.org/drawingml/2006/table"
 
+// graphicDataURIChart defines the value of the uri attribute of the
+// a:graphicData element that contains the chart reference (c:chart).
+const graphicDataURIChart = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+
 // decodeGraphicFrame directly maps the p:graphicFrame element of the shape
 // tree: the graphic frame of the slide that contains the table (a:tbl) or
 // the other graphic content (for example the chart).
@@ -46,9 +50,11 @@ type decodeGraphic struct {
 type decodeGraphicData struct {
 	URI   string `xml:"uri,attr"`
 	Table *decodeTable
+	Chart *decodeChart
 
 	// RawContent is the raw content of the element as it is in the slide
-	// XML; it is empty for the graphic frames created with AddTable.
+	// XML; it is empty for the graphic frames created with AddTable and
+	// AddChart.
 	RawContent string `xml:"-"`
 	// TableModified is set when the table is modified with the public API
 	// (SetTableCell, SetTableCellText): the table is then serialized from
@@ -56,12 +62,24 @@ type decodeGraphicData struct {
 	TableModified bool `xml:"-"`
 }
 
+// decodeChart directly maps the c:chart element of the graphic data: the
+// reference to the chart part by the relationship id (the r:id attribute)
+// in the slide rels part.
+type decodeChart struct {
+	ID string `xml:"id,attr"`
+}
+
 // tblElementRe matches the table element (tbl, with any namespace prefix) in
 // the raw content of the graphic data element.
 var tblElementRe = regexp.MustCompile(`<(?:[A-Za-z_][\w.-]*:)?tbl[ >/]`)
 
+// chartElementRe matches the chart reference element (chart, with any
+// namespace prefix) in the raw content of the graphic data element.
+var chartElementRe = regexp.MustCompile(`<(?:[A-Za-z_][\w.-]*:)?chart[ >/]`)
+
 // UnmarshalXML reads the graphic data element: the uri attribute, the table
-// (a:tbl) when it is present, and the raw content of the element.
+// (a:tbl) or the chart reference (c:chart) when it is present, and the raw
+// content of the element.
 func (dst *decodeGraphicData) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	for _, attr := range start.Attr {
 		if attr.Name.Local == "uri" {
@@ -75,20 +93,26 @@ func (dst *decodeGraphicData) UnmarshalXML(d *xml.Decoder, start xml.StartElemen
 	}
 	dst.RawContent = raw.Content
 
-	if !tblElementRe.MatchString(raw.Content) {
-		return nil
+	// parse the table or the chart reference from the raw content: the
+	// element names use the prefixes of the slide document, the struct tags
+	// match by the local name only
+	if tblElementRe.MatchString(raw.Content) {
+		var wrapped struct {
+			Table *decodeTable `xml:"tbl"`
+		}
+		if err := xml.Unmarshal([]byte("<wrap>"+raw.Content+"</wrap>"), &wrapped); err != nil {
+			return err
+		}
+		dst.Table = wrapped.Table
+	} else if chartElementRe.MatchString(raw.Content) {
+		var wrapped struct {
+			Chart *decodeChart `xml:"chart"`
+		}
+		if err := xml.Unmarshal([]byte("<wrap>"+raw.Content+"</wrap>"), &wrapped); err != nil {
+			return err
+		}
+		dst.Chart = wrapped.Chart
 	}
-
-	// parse the table from the raw content: the element names use the
-	// prefixes of the slide document, the struct tags match by the local
-	// name only
-	var wrapped struct {
-		Table *decodeTable `xml:"tbl"`
-	}
-	if err := xml.Unmarshal([]byte("<wrap>"+raw.Content+"</wrap>"), &wrapped); err != nil {
-		return err
-	}
-	dst.Table = wrapped.Table
 
 	return nil
 }
@@ -157,11 +181,11 @@ type Graphic struct {
 type GraphicData struct {
 	URI       string     `xml:"-"`
 	TableData *TableData `xml:"a:tbl"`
+	ChartRef  *ChartRef  `xml:"-"`
 
 	// RawContent is the raw content of the element; on save it is written
 	// back as-is when the table is not modified, so the graphic data
-	// content that is not modeled (for example the chart) is preserved on
-	// the round trip.
+	// content that is not modeled is preserved on the round trip.
 	RawContent    string `xml:"-"`
 	TableModified bool   `xml:"-"`
 }
@@ -174,20 +198,41 @@ type rawGraphicData struct {
 }
 
 // MarshalXML writes the graphic data element: the table from the model when
-// the table is modified, the raw content as-is otherwise.
+// the table is modified, the chart reference of the new graphic frame from
+// the model, the raw content as-is otherwise.
 func (g GraphicData) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	start.Name = xml.Name{Local: "a:graphicData"}
-	if g.TableData == nil || !g.TableModified {
-		return e.EncodeElement(rawGraphicData{URI: g.URI, Content: g.RawContent}, start)
+	if g.TableData != nil && g.TableModified {
+		start.Attr = []xml.Attr{{Name: xml.Name{Local: "uri"}, Value: g.URI}}
+		if err := e.EncodeToken(start); err != nil {
+			return err
+		}
+		if err := e.EncodeElement(g.TableData, xml.StartElement{Name: xml.Name{Local: "a:tbl"}}); err != nil {
+			return err
+		}
+		return e.EncodeToken(xml.EndElement{Name: start.Name})
 	}
-	start.Attr = []xml.Attr{{Name: xml.Name{Local: "uri"}, Value: g.URI}}
-	if err := e.EncodeToken(start); err != nil {
-		return err
+	if g.ChartRef != nil && g.RawContent == "" {
+		start.Attr = []xml.Attr{{Name: xml.Name{Local: "uri"}, Value: g.URI}}
+		if err := e.EncodeToken(start); err != nil {
+			return err
+		}
+		if err := e.EncodeElement(g.ChartRef, xml.StartElement{Name: xml.Name{Local: "c:chart"}}); err != nil {
+			return err
+		}
+		return e.EncodeToken(xml.EndElement{Name: start.Name})
 	}
-	if err := e.EncodeElement(g.TableData, xml.StartElement{Name: xml.Name{Local: "a:tbl"}}); err != nil {
-		return err
-	}
-	return e.EncodeToken(xml.EndElement{Name: start.Name})
+	return e.EncodeElement(rawGraphicData{URI: g.URI, Content: g.RawContent}, start)
+}
+
+// ChartRef defines the c:chart element of the graphic data: the reference
+// to the chart part by the relationship id (the r:id attribute). The
+// namespaces of the c and the r prefixes are declared inline on the element,
+// the same way PowerPoint writes it.
+type ChartRef struct {
+	XMLNSC string `xml:"xmlns:c,attr"`
+	XMLNSR string `xml:"xmlns:r,attr"`
+	ID     string `xml:"r:id,attr"`
 }
 
 // TableData directly maps the a:tbl element of the graphic data: the table
@@ -238,16 +283,6 @@ type TableCell struct {
 	VMerge              *bool     `xml:"vMerge,attr,omitempty"`
 	TextBody            *TextBody `xml:"a:txBody"`
 	TableCellProperties *innerXML `xml:"a:tcPr,omitempty"`
-}
-
-// Table is a table of the slide: the id and the name of the graphic frame
-// that contains the table, the position and the size of the graphic frame,
-// and the table data (the a:tbl element of the graphic data).
-type Table struct {
-	ID        int
-	Name      string
-	Xfrm      *Xfrm
-	TableData *TableData
 }
 
 // newTableData provides a function to convert the decode table to the table
@@ -318,7 +353,23 @@ func newGraphicFrame(dg decodeGraphicFrame) GraphicFrame {
 		if gd.Table != nil {
 			gf.Graphic.GraphicData.TableData = newTableData(gd.Table)
 		}
+		if gd.Chart != nil {
+			gf.Graphic.GraphicData.ChartRef = &ChartRef{
+				XMLNSC: NameSpaceDrawingMLChart.Value,
+				XMLNSR: SourceRelationship.Value,
+				ID:     gd.Chart.ID,
+			}
+		}
 	}
 
 	return gf
+}
+
+// chartRef returns the chart reference (the c:chart element of the graphic
+// data) of the graphic frame, or false when the graphic frame has no chart.
+func (gf *decodeGraphicFrame) chartRef() (*decodeChart, bool) {
+	if gf.Graphic == nil || gf.Graphic.GraphicData == nil || gf.Graphic.GraphicData.Chart == nil {
+		return nil, false
+	}
+	return gf.Graphic.GraphicData.Chart, true
 }

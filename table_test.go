@@ -16,9 +16,12 @@ import (
 )
 
 // cellText returns the plain text of the cell of the table.
-func cellText(t *testing.T, table Table, row, col int) string {
+func cellText(t *testing.T, table decodeGraphicFrame, row, col int) string {
 	t.Helper()
-	data := table.TableData
+	data, ok := table.tableData()
+	if !ok {
+		t.Fatal("the graphic frame has no table")
+	}
 	if row < 0 || row >= len(data.TableRows) {
 		t.Fatalf("row %d out of range", row)
 	}
@@ -65,18 +68,21 @@ func TestAddTable(t *testing.T) {
 	if len(tables) != 1 {
 		t.Fatalf("expected 1 table, got %d", len(tables))
 	}
-	if tables[0].ID != tableID {
-		t.Fatalf("table id = %d, want %d", tables[0].ID, tableID)
+	if frameID(tables[0]) != tableID {
+		t.Fatalf("table id = %d, want %d", frameID(tables[0]), tableID)
 	}
-	if tables[0].Name != "Table "+strconv.Itoa(tableID) {
-		t.Fatalf("table name = %q, want the default name", tables[0].Name)
+	if frameName(tables[0]) != "Table "+strconv.Itoa(tableID) {
+		t.Fatalf("table name = %q, want the default name", frameName(tables[0]))
 	}
 
 	table, err := f.GetTable(slideID, tableID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := table.TableData
+	data, ok := table.tableData()
+	if !ok {
+		t.Fatal("the graphic frame has no table")
+	}
 	if len(data.TableRows) != 2 {
 		t.Fatalf("expected 2 rows, got %d", len(data.TableRows))
 	}
@@ -171,7 +177,11 @@ func TestSetTableCell(t *testing.T) {
 	if got := cellText(t, table2, 0, 0); got != "plain" {
 		t.Fatalf("after the reload the cell (0, 0) = %q, want \"plain\"", got)
 	}
-	run := table2.TableData.TableRows[1].TableCells[1].TextBody.Paragraph[0].Runs[0]
+	data, ok := table2.tableData()
+	if !ok {
+		t.Fatal("the table is not read back")
+	}
+	run := data.TableRows[1].TableCells[1].TextBody.Paragraph[0].Runs[0]
 	if run.Text != "styled" || run.RunProperties == nil ||
 		run.RunProperties.Bold == nil || *run.RunProperties.Bold != bold ||
 		run.RunProperties.Size == nil || *run.RunProperties.Size != size ||

@@ -671,6 +671,34 @@ func newRuns(r []DecodeRuns) []Runs {
 	return runs
 }
 
+// newBr provides a function to convert the decode line breaks to the line
+// breaks.
+func newBr(b []DecodeBr) []Br {
+	brs := make([]Br, len(b))
+	for i, br := range b {
+		brs[i] = Br{
+			RunProperties: newRunProperties(br.RunProperties),
+		}
+	}
+
+	return brs
+}
+
+// newField provides a function to convert the decode fields to the fields.
+func newField(fld []DecodeField) []Field {
+	fields := make([]Field, len(fld))
+	for i, f := range fld {
+		fields[i] = Field{
+			ID:            f.ID,
+			Type:          f.Type,
+			RunProperties: newRunProperties(f.RunProperties),
+			Text:          f.Text,
+		}
+	}
+
+	return fields
+}
+
 // newParagraphProperties provides a function to convert the decode paragraph
 // properties to the paragraph properties.
 func newParagraphProperties(dpp *DecodeParagraphProperties) *ParagraphProperties {
@@ -743,7 +771,10 @@ func newTextBody(dt *DecodeTextBody) *TextBody {
 		paragraphs[i] = Paragraph{
 			ParagraphProperties:       newParagraphProperties(p.ParagraphProperties),
 			Runs:                      newRuns(p.Runs),
+			Breaks:                    newBr(p.Breaks),
+			Field:                     newField(p.Field),
 			EndParagraphRunProperties: newRunProperties(p.EndParagraphRunProperties),
+			paragraphOrder:            p.paragraphOrder,
 		}
 	}
 
@@ -759,6 +790,7 @@ func newTextBody(dt *DecodeTextBody) *TextBody {
 			Wrap:             dt.BodyProperties.Wrap,
 			TIns:             dt.BodyProperties.TIns,
 			NormAutofit:      dt.BodyProperties.NormAutofit,
+			SpAutoFit:        dt.BodyProperties.SpAutoFit,
 			NoAutofit:        dt.BodyProperties.NoAutofit,
 		}
 	}

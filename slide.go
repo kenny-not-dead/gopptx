@@ -233,6 +233,67 @@ func (f *File) SetShapeTextBody(slideID int, shapeID int, textBody DecodeTextBod
 	return ErrShapeNotExist{shapeID}
 }
 
+// SetShapeText provides a function to set the text of the shape by the given
+// shape id, replacing the paragraph of the text body of the shape: the text
+// is set as a single paragraph with one run per line and a line break
+// (a:br) between the lines, without the run properties (the text inherits
+// the formatting of the shape). The body properties of the current text body
+// are kept.
+//
+//	f.SetShapeText(256, 8, "Line 1\nLine 2")
+func (f *File) SetShapeText(slideID int, shapeID int, text string) error {
+	slide, err := f.slideReader(slideID)
+	if err != nil {
+		return err
+	}
+
+	lines := strings.Split(text, "\n")
+	runs := make([]DecodeRuns, 0, len(lines))
+	brs := make([]DecodeBr, 0, len(lines))
+	for i, line := range lines {
+		if i > 0 {
+			brs = append(brs, DecodeBr{})
+		}
+		runs = append(runs, DecodeRuns{Text: line})
+	}
+
+	// the runs and the line breaks are interleaved in the document order:
+	// line 1, break, line 2, break, ...
+	order := make([]paragraphOrderEntry, 0, len(runs)+len(brs))
+	for i := range brs {
+		order = append(order, paragraphOrderEntry{kind: paragraphOrderRun, index: i})
+		order = append(order, paragraphOrderEntry{kind: paragraphOrderBr, index: i})
+	}
+	order = append(order, paragraphOrderEntry{kind: paragraphOrderRun, index: len(brs)})
+
+	paragraph := DecodeParagraph{
+		Runs:           runs,
+		Breaks:         brs,
+		paragraphOrder: order,
+	}
+
+	for i := range slide.CommonSlideData.ShapeTree.Children {
+		shape := slide.CommonSlideData.ShapeTree.Children[i].Shape
+		if shape == nil ||
+			shape.NonVisualShapeProperties == nil ||
+			shape.NonVisualShapeProperties.CommonNonVisualProperties == nil ||
+			shape.NonVisualShapeProperties.CommonNonVisualProperties.ID != shapeID {
+			continue
+		}
+		if shape.TextBody == nil {
+			shape.TextBody = &DecodeTextBody{
+				BodyProperties: &DecodeBodyProperties{},
+				ListStyle:      &struct{}{},
+			}
+		}
+		shape.TextBody.Paragraph = []DecodeParagraph{paragraph}
+
+		return nil
+	}
+
+	return ErrShapeNotExist{shapeID}
+}
+
 // SetSlideBackground provides a function to set the slide background by given
 // slide id, replacing the current background of the slide.
 func (f *File) SetSlideBackground(slideID int, background DecodeBackground) error {

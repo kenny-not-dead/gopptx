@@ -12,13 +12,17 @@ import "encoding/xml"
 // theme directly maps the theme element in the namespace
 // http://schemas.openxmlformats.org/drawingml/2006/main
 type theme struct {
-	XMLName           xml.Name   `xml:"a:theme"`
-	XMLNSa            string     `xml:"xmlns:a,attr"`
-	XMLNSr            string     `xml:"xmlns:r,attr"`
-	Name              string     `xml:"name,attr"`
-	ThemeElements     baseStyles `xml:"a:themeElements"`
-	ObjectDefaults    *struct{}  `xml:"a:objectDefaults,omitempty"`
-	ExtraClrSchemeLst *struct{}  `xml:"a:extraClrSchemeLst,omitempty"`
+	XMLName       xml.Name   `xml:"a:theme"`
+	XMLNSa        string     `xml:"xmlns:a,attr"`
+	XMLNSr        string     `xml:"xmlns:r,attr"`
+	Name          string     `xml:"name,attr"`
+	ThemeElements baseStyles `xml:"a:themeElements"`
+	// ObjectDefaults is the raw content of the objectDefaults element (the
+	// spDef, the lnDef and the txDef elements): it is captured on load and
+	// written back as-is on save, so the theme is preserved on the round
+	// trip
+	ObjectDefaults    *innerXML `xml:"a:objectDefaults,omitempty"`
+	ExtraClrSchemeLst *struct{} `xml:"a:extraClrSchemeLst,omitempty"`
 }
 
 // baseStyles defines the theme elements for a theme, and is the workhorse
@@ -142,11 +146,14 @@ type systemColor struct {
 // decodeTheme defines the structure used to parse the a:theme element for the
 // theme.
 type decodeTheme struct {
-	XMLName           xml.Name         `xml:"http://schemas.openxmlformats.org/drawingml/2006/main theme"`
-	Name              string           `xml:"name,attr"`
-	ThemeElements     decodeBaseStyles `xml:"themeElements"`
-	ObjectDefaults    *struct{}        `xml:"objectDefaults,omitempty"`
-	ExtraClrSchemeLst *struct{}        `xml:"extraClrSchemeLst,omitempty"`
+	XMLName       xml.Name         `xml:"http://schemas.openxmlformats.org/drawingml/2006/main theme"`
+	Name          string           `xml:"name,attr"`
+	ThemeElements decodeBaseStyles `xml:"themeElements"`
+	// ObjectDefaults is the raw content of the objectDefaults element: it is
+	// captured on load and written back as-is on save, so the theme is
+	// preserved on the round trip
+	ObjectDefaults    *innerXML `xml:"objectDefaults,omitempty"`
+	ExtraClrSchemeLst *struct{} `xml:"extraClrSchemeLst,omitempty"`
 }
 
 // decodeBaseStyles defines the structure used to parse the theme elements for a

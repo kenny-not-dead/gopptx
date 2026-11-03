@@ -24,6 +24,36 @@ func sampleSourcePath() string {
 	return filepath.Join("example", "Новая презентация.pptx")
 }
 
+// frameID returns the id (the id attribute of the p:cNvPr element) of the
+// graphic frame of the chart or the table.
+func frameID(gf decodeGraphicFrame) int {
+	if gf.NonVisualGraphicFrameProperties == nil ||
+		gf.NonVisualGraphicFrameProperties.CommonNonVisualProperties == nil {
+		return -1
+	}
+	return gf.NonVisualGraphicFrameProperties.CommonNonVisualProperties.ID
+}
+
+// frameName returns the name (the name attribute of the p:cNvPr element) of
+// the graphic frame of the chart or the table.
+func frameName(gf decodeGraphicFrame) string {
+	if gf.NonVisualGraphicFrameProperties == nil ||
+		gf.NonVisualGraphicFrameProperties.CommonNonVisualProperties == nil {
+		return ""
+	}
+	return gf.NonVisualGraphicFrameProperties.CommonNonVisualProperties.Name
+}
+
+// chartRefID returns the relationship id of the chart (the r:id attribute of
+// the c:chart element of the graphic data), or "" when the graphic frame has
+// no chart reference.
+func chartRefID(gf decodeGraphicFrame) string {
+	if ref, ok := gf.chartRef(); ok {
+		return ref.ID
+	}
+	return ""
+}
+
 // readZipPart provides a function to read a part of the zip archive.
 func readZipPart(t *testing.T, path, name string) []byte {
 	t.Helper()
@@ -87,6 +117,14 @@ func hasZipPart(t *testing.T, path, name string) bool {
 // in the dst zip archive with the identical content.
 func assertPartsEqual(t *testing.T, src, dst string) error {
 	t.Helper()
+	return assertPartsEqualWith(t, src, dst, nil)
+}
+
+// assertPartsEqualWith is assertPartsEqual with the normalization function
+// applied to the content of each part (by the part name) before the
+// comparison; the function is nil for the byte for byte comparison.
+func assertPartsEqualWith(t *testing.T, src, dst string, norm func(name string, content []byte) []byte) error {
+	t.Helper()
 	s, err := os.Open(src)
 	if err != nil {
 		return err
@@ -136,8 +174,14 @@ func assertPartsEqual(t *testing.T, src, dst string) error {
 		}
 		a.Close()
 		b.Close()
-		if !bytes.Equal(da.Bytes(), db.Bytes()) {
-			errs = append(errs, fmt.Errorf("part %s differs after the round trip (%d vs %d bytes)", v.Name, len(da.Bytes()), len(db.Bytes())))
+		aContent := da.Bytes()
+		bContent := db.Bytes()
+		if norm != nil {
+			aContent = norm(v.Name, aContent)
+			bContent = norm(v.Name, bContent)
+		}
+		if !bytes.Equal(aContent, bContent) {
+			errs = append(errs, fmt.Errorf("part %s differs after the round trip (%d vs %d bytes)", v.Name, len(aContent), len(bContent)))
 		}
 	}
 	return errors.Join(errs...)

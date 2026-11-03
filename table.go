@@ -142,9 +142,11 @@ func (f *File) AddTable(slideID int, opts *TableOptions) (int, error) {
 }
 
 // GetTables provides a function to get the tables of the slide by the given
-// slide id, in the document order of the shape tree.
-func (f *File) GetTables(slideID int) ([]Table, error) {
-	var tables []Table
+// slide id, in the document order of the shape tree. The tables are the
+// graphic frames (p:graphicFrame) with the table (a:tbl), returned by value:
+// edits of the returned slice do not affect the slide.
+func (f *File) GetTables(slideID int) ([]decodeGraphicFrame, error) {
+	var tables []decodeGraphicFrame
 	slide, err := f.slideReader(slideID)
 	if err != nil {
 		return tables, err
@@ -158,7 +160,7 @@ func (f *File) GetTables(slideID int) ([]Table, error) {
 		if _, ok := child.GraphicFrame.tableData(); !ok {
 			continue
 		}
-		tables = append(tables, newTable(*child.GraphicFrame))
+		tables = append(tables, *child.GraphicFrame)
 	}
 
 	return tables, nil
@@ -166,13 +168,14 @@ func (f *File) GetTables(slideID int) ([]Table, error) {
 
 // GetTable provides a function to get the table of the slide by the given
 // slide id and table id (the id attribute of the p:cNvPr element of the
-// graphic frame that contains the table).
-func (f *File) GetTable(slideID, tableID int) (Table, error) {
+// graphic frame that contains the table), the same way GetShapes returns
+// the shapes: the graphic frame is returned by value.
+func (f *File) GetTable(slideID, tableID int) (decodeGraphicFrame, error) {
 	gf, err := f.tableGraphicFrame(slideID, tableID)
 	if err != nil {
-		return Table{}, err
+		return decodeGraphicFrame{}, err
 	}
-	return newTable(*gf), nil
+	return *gf, nil
 }
 
 // SetTableCell provides a function to set the text body of the cell of the
@@ -332,47 +335,9 @@ func (gf *decodeGraphicFrame) markTableModified() {
 	gf.Graphic.GraphicData.TableModified = true
 }
 
-// newTable provides a function to convert the decode graphic frame that
-// contains the table to the table.
-func newTable(dg decodeGraphicFrame) Table {
-	table := Table{}
-	if dg.NonVisualGraphicFrameProperties != nil &&
-		dg.NonVisualGraphicFrameProperties.CommonNonVisualProperties != nil {
-		table.ID = dg.NonVisualGraphicFrameProperties.CommonNonVisualProperties.ID
-		table.Name = dg.NonVisualGraphicFrameProperties.CommonNonVisualProperties.Name
-	}
-	table.Xfrm = newXfrm(dg.Xfrm)
-	if data, ok := dg.tableData(); ok {
-		table.TableData = newTableData(data)
-	}
-
-	return table
-}
-
 // tableLayout provides a function to calculate the offset and the extents
-// (in EMU) of the new table. By default (the zero values of the options)
-// the table is centered on the slide, taking 80% of the slide size, the
-// same way pictureLayout does it for the pictures.
+// (in EMU) of the new table, the same way frameLayout does it for the
+// graphic frames.
 func (f *File) tableLayout(o TableOptions) (Offset, Extents) {
-	slideSize := slideSize{CY: 5143500, CX: 9144000}
-	if presentation, _ := f.presentationReader(); presentation != nil && presentation.SlideSize != nil {
-		slideSize = *presentation.SlideSize
-	}
-
-	offset := Offset{X: slideSize.CX / 10, Y: slideSize.CY / 10}
-	extents := Extents{CX: slideSize.CX * 4 / 5, CY: slideSize.CY * 4 / 5}
-	if o.OffsetX != 0 {
-		offset.X = o.OffsetX
-	}
-	if o.OffsetY != 0 {
-		offset.Y = o.OffsetY
-	}
-	if o.Width != 0 {
-		extents.CX = o.Width
-	}
-	if o.Height != 0 {
-		extents.CY = o.Height
-	}
-
-	return offset, extents
+	return f.frameLayout(o.OffsetX, o.OffsetY, o.Width, o.Height)
 }

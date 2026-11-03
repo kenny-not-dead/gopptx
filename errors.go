@@ -47,6 +47,13 @@ var (
 	// ErrTableInvalidSize is returned when the given size of the new table
 	// is invalid: the table must have at least one row and one column.
 	ErrTableInvalidSize = errors.New("the table must have at least one row and one column")
+	// ErrChartEmpty defined the error message on receive the empty chart
+	// data.
+	ErrChartEmpty = errors.New("the chart data is empty")
+	// ErrChartInvalidData is returned when the given data of the new chart
+	// is invalid: the chart must have at least one category and one series
+	// with the value of each category.
+	ErrChartInvalidData = errors.New("the chart must have at least one category and one series with the value of each category")
 )
 
 // ErrSlideNotExist defined an error of slide that does not exist.
@@ -107,6 +114,16 @@ type ErrTableNotExist struct {
 // Error returns the error message on receiving the non existing table.
 func (err ErrTableNotExist) Error() string {
 	return fmt.Sprintf("table %d does not exist", err.TableID)
+}
+
+// ErrChartNotExist defined an error of chart that does not exist.
+type ErrChartNotExist struct {
+	ChartID int
+}
+
+// Error returns the error message on receiving the non existing chart.
+func (err ErrChartNotExist) Error() string {
+	return fmt.Sprintf("chart %d does not exist", err.ChartID)
 }
 
 // ErrTableCellInvalid defined an error of a table cell that is out of the
