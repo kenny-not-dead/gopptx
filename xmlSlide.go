@@ -458,6 +458,7 @@ type ParagraphProperties struct {
 	SpacingAfter     *SpacingChange `xml:"a:spcAft,omitempty"`
 	BuFont           *BulletFont    `xml:"a:buFont,omitempty"`
 	BuChar           *BulletChar    `xml:"a:buChar,omitempty"`
+	BuAutoNum        *BulletAutoNum `xml:"a:buAutoNum,omitempty"`
 	BuNone           *struct{}      `xml:"a:buNone,omitempty"`
 	DefRunProperties *RunProperties `xml:"a:defRPr,omitempty"`
 }
@@ -472,6 +473,18 @@ type BulletFont struct {
 // character used as the bullet.
 type BulletChar struct {
 	Char string `xml:"char,attr,omitempty"`
+}
+
+// BulletAutoNum defines the a:buAutoNum element of the paragraph properties:
+// the auto numbering of the paragraph (a numbered list). The type is the
+// numbering scheme of the list (ST_TextAutoNumberType), for example
+// "arabicPeriod" (1. 2. 3.), "alphaLcPeriod" (a. b. c.) or "romanUcPeriod"
+// (I. II. III.), the startAt is the number to start the list at. The
+// numbering continues between the paragraphs of the text body that use the
+// same numbering scheme.
+type BulletAutoNum struct {
+	Type    string `xml:"type,attr"`
+	StartAt *int   `xml:"startAt,attr,omitempty"`
 }
 
 // SpacingChange defines the spacing before (a:spcBef) or spacing after
@@ -966,6 +979,7 @@ type DecodeParagraphProperties struct {
 	SpacingAfter     *DecodeSpacingChange `xml:"spcAft,omitempty"`
 	BuFont           *DecodeBulletFont    `xml:"buFont,omitempty"`
 	BuChar           *DecodeBulletChar    `xml:"buChar,omitempty"`
+	BuAutoNum        *DecodeBulletAutoNum `xml:"buAutoNum,omitempty"`
 	BuNone           *struct{}            `xml:"buNone,omitempty"`
 	DefRunProperties *DecodeRunProperties `xml:"defRPr,omitempty"`
 }
@@ -980,6 +994,13 @@ type DecodeBulletFont struct {
 // properties: the character used as the bullet.
 type DecodeBulletChar struct {
 	Char string `xml:"char,attr,omitempty"`
+}
+
+// DecodeBulletAutoNum directly maps the buAutoNum element of the paragraph
+// properties: the auto numbering of the paragraph (a numbered list).
+type DecodeBulletAutoNum struct {
+	Type    string `xml:"type,attr"`
+	StartAt *int   `xml:"startAt,attr,omitempty"`
 }
 
 // DecodeLineSpacing directly maps the lnSpc element of the paragraph
@@ -1039,10 +1060,12 @@ type SolidRGBColor struct {
 
 // Hyperlink defines the hyperlink (a:hlinkClick or a:hlinkMouseOver) element
 // of the run properties or of the common non-visual properties: the id of the
-// hyperlink relationship in the slide rels part and the tooltip shown on
-// hover.
+// hyperlink relationship in the slide rels part, the action of the internal
+// hyperlink (for example "ppaction://hlinksldjump" for the link to a slide)
+// and the tooltip shown on hover.
 type Hyperlink struct {
 	ID      string `xml:"r:id,attr"`
+	Action  string `xml:"action,attr,omitempty"`
 	Tooltip string `xml:"tooltip,attr,omitempty"`
 }
 
@@ -1050,6 +1073,7 @@ type Hyperlink struct {
 // the run properties or of the common non-visual properties.
 type DecodeHyperlink struct {
 	ID      string `xml:"http://schemas.openxmlformats.org/officeDocument/2006/relationships id,attr"`
+	Action  string `xml:"action,attr,omitempty"`
 	Tooltip string `xml:"tooltip,attr,omitempty"`
 }
 

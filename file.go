@@ -505,6 +505,7 @@ func newHyperlink(dh *DecodeHyperlink) *Hyperlink {
 
 	return &Hyperlink{
 		ID:      dh.ID,
+		Action:  dh.Action,
 		Tooltip: dh.Tooltip,
 	}
 }
@@ -527,6 +528,7 @@ func newCommonNonVisualProperties(
 	if dcnvp.HlinkClick != nil {
 		cnvp.HlinkClick = &Hyperlink{
 			ID:      dcnvp.HlinkClick.ID,
+			Action:  dcnvp.HlinkClick.Action,
 			Tooltip: dcnvp.HlinkClick.Tooltip,
 		}
 	}
@@ -534,6 +536,7 @@ func newCommonNonVisualProperties(
 	if dcnvp.HlinkMouseOver != nil {
 		cnvp.HlinkMouseOver = &Hyperlink{
 			ID:      dcnvp.HlinkMouseOver.ID,
+			Action:  dcnvp.HlinkMouseOver.Action,
 			Tooltip: dcnvp.HlinkMouseOver.Tooltip,
 		}
 	}
@@ -742,6 +745,16 @@ func newParagraphProperties(dpp *DecodeParagraphProperties) *ParagraphProperties
 			Char: dbc.Char,
 		}
 	}
+	newBulletAutoNum := func(dbn *DecodeBulletAutoNum) *BulletAutoNum {
+		if dbn == nil {
+			return nil
+		}
+
+		return &BulletAutoNum{
+			Type:    dbn.Type,
+			StartAt: dbn.StartAt,
+		}
+	}
 
 	return &ParagraphProperties{
 		Indent:           dpp.Indent,
@@ -754,6 +767,7 @@ func newParagraphProperties(dpp *DecodeParagraphProperties) *ParagraphProperties
 		SpacingAfter:     newSpacingChange(dpp.SpacingAfter),
 		BuFont:           newBulletFont(dpp.BuFont),
 		BuChar:           newBulletChar(dpp.BuChar),
+		BuAutoNum:        newBulletAutoNum(dpp.BuAutoNum),
 		BuNone:           dpp.BuNone,
 		DefRunProperties: newRunProperties(dpp.DefRunProperties),
 	}

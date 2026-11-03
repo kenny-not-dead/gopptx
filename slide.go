@@ -184,6 +184,18 @@ func (f *File) getSlideXMLPath(id int) (string, bool) {
 	return path, ok
 }
 
+// slideIDByPart provides a function to get the slide id by the part path of
+// the slide, or 0 when the slide is not found.
+func (f *File) slideIDByPart(path string) int {
+	for id, p := range f.slideMap {
+		if p == path {
+			return id
+		}
+	}
+
+	return 0
+}
+
 // GetShapes provides a function to get shapes by given slide id, in the
 // document order. The shapes are returned by value: edits of the returned
 // slice do not affect the slide, use the SetShape* methods to change a shape.

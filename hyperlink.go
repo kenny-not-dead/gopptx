@@ -8,6 +8,7 @@
 package gopptx
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -26,10 +27,12 @@ const (
 	// the TargetMode "External" is added to the slide rels part of the
 	// slide.
 	LinkTypeExternal LinkType = "External"
-	// LinkTypeLocation is the internal hyperlink to a part of the
-	// presentation (the slides, for example). It is supported by
-	// GetShapeHyperLinks as a filter only; SetShapeHyperLink returns
-	// ErrInvalidLinkType for it.
+	// LinkTypeLocation is the internal hyperlink to the slide of the
+	// presentation: the link is the id of the target slide, a relationship
+	// of the type "slide" (without the TargetMode) is added to the slide
+	// rels part of the slide and the "ppaction://hlinksldjump" action is
+	// written to the hyperlink element, so the link jumps to the target
+	// slide in the presentation.
 	LinkTypeLocation LinkType = "Location"
 	// LinkTypeNone removes the hyperlink from the shape (SetShapeHyperLink)
 	// or filters the shapes without hyperlinks (GetShapeHyperLinks).
@@ -39,20 +42,31 @@ const (
 // SetShapeHyperLink provides a function to set the hyperlink of a shape by
 // the given slide id and shape id. The linkType defines the type of the
 // hyperlink: LinkTypeExternal for a URL (a hyperlink relationship with the
-// TargetMode "External" is added to the slide rels part) and LinkTypeNone to
-// remove the hyperlink from the shape. For a text shape the hyperlink is set
-// to all the runs of the shape text (to the end paragraph run properties of
-// the first paragraph when the shape text has no runs), so the whole shape
-// text becomes the link; for a picture the hyperlink is set to the common
-// non-visual properties of the picture, so the whole picture becomes the
-// link. The hyperlink element (a:hlinkClick) of the run properties and of
-// the common non-visual properties is preserved on the round trip, so the
-// links of the loaded presentation are not lost on save.
+// TargetMode "External" is added to the slide rels part), LinkTypeLocation
+// for the internal link to the slide of the presentation (the link is the id
+// of the target slide, a relationship of the type "slide" is added to the
+// slide rels part and the "ppaction://hlinksldjump" action is written to the
+// hyperlink element, so the link jumps to the target slide in the
+// presentation) and LinkTypeNone to remove the hyperlink from the shape. For
+// a text shape the hyperlink is set to all the runs of the shape text (to
+// the end paragraph run properties of the first paragraph when the shape
+// text has no runs), so the whole shape text becomes the link; for a picture
+// the hyperlink is set to the common non-visual properties of the picture,
+// so the whole picture becomes the link. The hyperlink element (a:hlinkClick)
+// of the run properties and of the common non-visual properties is preserved
+// on the round trip, so the links of the loaded presentation are not lost on
+// save.
 //
 //	tooltip := "gopptx on GitHub"
 //	if err := f.SetShapeHyperLink(slideID, shapeID,
 //	    "https://github.com/kenny-not-dead/gopptx",
 //	    gopptx.LinkTypeExternal, gopptx.HyperlinkOpts{Tooltip: &tooltip}); err != nil {
+//	    fmt.Println(err)
+//	}
+//
+//	the internal link to the slide with the id 257:
+//
+//	if err := f.SetShapeHyperLink(slideID, shapeID, "257", gopptx.LinkTypeLocation); err != nil {
 //	    fmt.Println(err)
 //	}
 func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType LinkType, opts ...HyperlinkOpts) error {
@@ -81,25 +95,12 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 		return ErrShapeNotExist{shapeID}
 	}
 
+	var hlink *Hyperlink
 	switch linkType {
 	case LinkTypeExternal:
-		hlink, err := f.shapeHyperlinkRelationship(slideID, link)
-		if err != nil {
-			return err
-		}
-		for _, o := range opts {
-			if o.Tooltip != nil {
-				hlink.Tooltip = *o.Tooltip
-			}
-		}
-		if shape != nil {
-			setShapeRunHyperlinks(shape, hlink)
-		} else {
-			pic.NonVisualPictureProperties.CommonNonVisualProperties.HlinkClick = &DecodeHyperlink{
-				ID:      hlink.ID,
-				Tooltip: hlink.Tooltip,
-			}
-		}
+		hlink, err = f.shapeHyperlinkRelationship(slideID, link)
+	case LinkTypeLocation:
+		hlink, err = f.shapeLocationRelationship(slideID, link)
 	case LinkTypeNone:
 		if shape != nil {
 			clearShapeRunHyperlinks(shape)
@@ -110,18 +111,40 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 		}
 
 		slidePath, _ := f.getSlideXMLPath(slideID)
-		f.removeUnusedHyperlinkRels(slide, slidePath)
+		f.removeUnusedLinkRels(slide, slidePath)
+
+		return nil
 	default:
 		return ErrInvalidLinkType
+	}
+
+	if err != nil {
+		return err
+	}
+
+	for _, o := range opts {
+		if o.Tooltip != nil {
+			hlink.Tooltip = *o.Tooltip
+		}
+	}
+	if shape != nil {
+		setShapeRunHyperlinks(shape, hlink)
+	} else {
+		pic.NonVisualPictureProperties.CommonNonVisualProperties.HlinkClick = &DecodeHyperlink{
+			ID:      hlink.ID,
+			Action:  hlink.Action,
+			Tooltip: hlink.Tooltip,
+		}
 	}
 
 	return nil
 }
 
 // GetShapeHyperLink gets the hyperlink of a shape by the given slide id and
-// shape id. It returns true and the link address (the target of the
-// hyperlink relationship) when the shape has a hyperlink, otherwise it
-// returns false and an empty link address.
+// shape id. It returns true and the link address when the shape has a
+// hyperlink, otherwise it returns false and an empty link address: the
+// target of the hyperlink relationship for the URL links (LinkTypeExternal)
+// and the id of the target slide for the internal links (LinkTypeLocation).
 //
 // For example, get the hyperlink of the shape with the id 7 on the slide
 // with the id 256:
@@ -173,6 +196,13 @@ func (f *File) GetShapeHyperLink(slideID, shapeID int) (bool, string, error) {
 	defer rels.mu.Unlock()
 	for _, rel := range rels.Relationships {
 		if rel.ID == id {
+			if rel.Type == SourceRelationshipSlide {
+				// the internal link: the address is the id of the target slide
+				if target := f.slideIDByPart(resolvePartPath(slidePath, rel.Target)); target != 0 {
+					return true, strconv.Itoa(target), nil
+				}
+			}
+
 			return true, rel.Target, nil
 		}
 	}
@@ -201,20 +231,23 @@ func (f *File) GetShapeHyperLinks(slideID int, linkType LinkType) ([]int, error)
 
 	slidePath, _ := f.getSlideXMLPath(slideID)
 	rels, _ := f.relsReader(f.getSlideRelsPath(slidePath))
-	isExternal := func(rID string) bool {
+	// relType returns the type of the relationship of the hyperlink of the
+	// shape (the type "hyperlink" for the URL links and the type "slide" for
+	// the internal links) or an empty type when the shape has no hyperlink
+	relType := func(rID string) string {
 		if rID == "" || rels == nil {
-			return false
+			return ""
 		}
 
 		rels.mu.Lock()
 		defer rels.mu.Unlock()
 		for _, rel := range rels.Relationships {
 			if rel.ID == rID {
-				return rel.Type == SourceRelationshipHyperlink
+				return rel.Type
 			}
 		}
 
-		return false
+		return ""
 	}
 
 	for i := range slide.CommonSlideData.ShapeTree.Children {
@@ -232,11 +265,11 @@ func (f *File) GetShapeHyperLinks(slideID int, linkType LinkType) ([]int, error)
 		hasLink := id != ""
 		switch linkType {
 		case LinkTypeExternal:
-			if hasLink && isExternal(id) {
+			if hasLink && relType(id) == SourceRelationshipHyperlink {
 				ids = append(ids, shapeID)
 			}
 		case LinkTypeLocation:
-			if hasLink && !isExternal(id) {
+			if hasLink && relType(id) == SourceRelationshipSlide {
 				ids = append(ids, shapeID)
 			}
 		case LinkTypeNone:
@@ -303,6 +336,55 @@ func (f *File) shapeHyperlinkRelationship(slideID int, target string) (*Hyperlin
 	return &Hyperlink{ID: "rId" + strconv.Itoa(rID)}, nil
 }
 
+// actionSlideJump is the action of the internal hyperlink to the slide of
+// the presentation (the "ppaction://hlinksldjump" action of the
+// a:hlinkClick element) that PowerPoint writes for the links to the slides
+// of the presentation.
+const actionSlideJump = "ppaction://hlinksldjump"
+
+// shapeLocationRelationship provides a function to add the relationship to
+// the target slide of the internal hyperlink to the slide rels part and
+// returns the hyperlink element with the relationship id and the slide jump
+// action. The link is the id of the target slide. An existing relationship
+// with the same target is reused.
+func (f *File) shapeLocationRelationship(slideID int, link string) (*Hyperlink, error) {
+	targetSlideID, err := strconv.Atoi(link)
+	if err != nil {
+		return nil, ErrLinkTargetInvalid{Target: link}
+	}
+	targetPath, ok := f.getSlideXMLPath(targetSlideID)
+	if !ok {
+		return nil, ErrSlideNotExist{SlideID: targetSlideID}
+	}
+
+	slidePath, _ := f.getSlideXMLPath(slideID)
+	// the hyperlink element references the relationship (r:id), so the slide
+	// root element must declare the relationships namespace
+	f.addNameSpaces(slidePath, SourceRelationship)
+	relsPath := f.getSlideRelsPath(slidePath)
+	// the slides are in the same directory, so the target of the
+	// relationship is the part name of the target slide
+	target := filepath.Base(targetPath)
+	rels, _ := f.relsReader(relsPath)
+	rID := 0
+	if rels != nil {
+		rels.mu.Lock()
+		for _, rel := range rels.Relationships {
+			if rel.Type == SourceRelationshipSlide && rel.Target == target {
+				rID, _ = strconv.Atoi(strings.TrimPrefix(rel.ID, "rId"))
+				break
+			}
+		}
+		rels.mu.Unlock()
+	}
+
+	if rID == 0 {
+		rID = f.addRels(relsPath, SourceRelationshipSlide, target, "")
+	}
+
+	return &Hyperlink{ID: "rId" + strconv.Itoa(rID), Action: actionSlideJump}, nil
+}
+
 // setShapeRunHyperlinks provides a function to set the hyperlink element to
 // all the runs of the shape text (to the end paragraph run properties of the
 // first paragraph when the shape text has no runs), the same as PowerPoint
@@ -316,7 +398,7 @@ func setShapeRunHyperlinks(shape *decodeShape, hlink *Hyperlink) {
 		if *rp == nil {
 			*rp = new(DecodeRunProperties)
 		}
-		(*rp).HlinkClick = &DecodeHyperlink{ID: hlink.ID, Tooltip: hlink.Tooltip}
+		(*rp).HlinkClick = &DecodeHyperlink{ID: hlink.ID, Action: hlink.Action, Tooltip: hlink.Tooltip}
 	}
 	runCount := 0
 	for p := range shape.TextBody.Paragraph {
@@ -351,10 +433,11 @@ func clearShapeRunHyperlinks(shape *decodeShape) {
 	}
 }
 
-// removeUnusedHyperlinkRels provides a function to remove the hyperlink
-// relationships that are not used by any shape of the slide from the slide
+// removeUnusedLinkRels provides a function to remove the hyperlink
+// relationships (the URL links) and the relationships to the slides (the
+// internal links) that are not used by any shape of the slide from the slide
 // rels part.
-func (f *File) removeUnusedHyperlinkRels(slide *decodeSlide, slidePath string) {
+func (f *File) removeUnusedLinkRels(slide *decodeSlide, slidePath string) {
 	used := map[string]bool{}
 	mark := func(id string) {
 		if id != "" {
@@ -418,7 +501,8 @@ func (f *File) removeUnusedHyperlinkRels(slide *decodeSlide, slidePath string) {
 	defer rels.mu.Unlock()
 	for idx := len(rels.Relationships) - 1; idx >= 0; idx-- {
 		rel := &rels.Relationships[idx]
-		if rel.Type == SourceRelationshipHyperlink && !used[rel.ID] {
+		if (rel.Type == SourceRelationshipHyperlink || rel.Type == SourceRelationshipSlide) &&
+			!used[rel.ID] {
 			rels.Relationships = append(rels.Relationships[:idx], rels.Relationships[idx+1:]...)
 		}
 	}
