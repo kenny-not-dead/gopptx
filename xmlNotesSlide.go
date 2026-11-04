@@ -61,7 +61,7 @@ type NotesSlide struct {
 	XMLNSP           string            `xml:"xmlns:p,attr"`
 	XMLNSR           string            `xml:"xmlns:r,attr"`
 	CommonSlideData  NotesSlideData    `xml:"p:cSld"`
-	ColorMapOverride *ClrMapOverride   `xml:"p:clrMapOvr,omitempty"`
+	ColorMapOverride *ColorMapOverride `xml:"p:clrMapOvr,omitempty"`
 	AlternateContent *alternateContent `xml:"mc:AlternateContent"`
 }
 

@@ -48,6 +48,16 @@ func (f *File) NewSlide() (int, error) {
 	// Create new slide /ppt/slides/slide%d.xml and slide rels /ppt/slides/_rels/slide%d.xml.rels
 	_ = f.setSlide(nextFileIndex, slideID)
 
+	// the new slide gets the slide number placeholder when the slide
+	// numbers are explicitly enabled (the new slide of PowerPoint inherits
+	// the placeholder from the layout, the number is shown when the sldNum
+	// flag of the slide master is enabled)
+	if f.slideNumbersExplicitlyEnabled() {
+		if err := f.ensureSlideSlideNumber(slideID); err != nil {
+			return -1, err
+		}
+	}
+
 	// Update presentation.xml
 	f.setPresentation(slideID, rID)
 
@@ -138,6 +148,11 @@ func (f *File) getSlideMap() (map[int]string, error) {
 				if _, ok := f.tempFiles.Load(slideXMLPath); ok {
 					maps[slide.SlideID] = slideXMLPath
 				}
+				// the slide that is created by NewSlide and not saved yet:
+				// the part of the slide is in the in-memory store only
+				if _, ok := f.Slide.Load(slideXMLPath); ok {
+					maps[slide.SlideID] = slideXMLPath
+				}
 			}
 		}
 	}
@@ -211,14 +226,7 @@ func (f *File) GetShapes(slideID int) ([]decodeShape, error) {
 
 // getShapes returns the shapes of the slide, in the document order.
 func (ds *decodeSlide) getShapes() []decodeShape {
-	var shapes []decodeShape
-	for i := range ds.CommonSlideData.ShapeTree.Children {
-		if child := ds.CommonSlideData.ShapeTree.Children[i].Shape; child != nil {
-			shapes = append(shapes, *child)
-		}
-	}
-
-	return shapes
+	return ds.CommonSlideData.shapes()
 }
 
 // SetShapeTextBody provides a function to set shape text body by given shape id.
@@ -245,6 +253,36 @@ func (f *File) SetShapeTextBody(slideID int, shapeID int, textBody DecodeTextBod
 	return ErrShapeNotExist{shapeID}
 }
 
+// newSetShapeTextParagraph provides a function to build the paragraph of the
+// set shape text: the text is set as a single paragraph with one run per
+// line and a line break (a:br) between the lines, without the run properties
+// (the text inherits the formatting of the shape), the runs and the line
+// breaks are interleaved in the document order.
+func newSetShapeTextParagraph(text string) DecodeParagraph {
+	lines := strings.Split(text, "\n")
+	runs := make([]DecodeRuns, 0, len(lines))
+	brs := make([]DecodeBr, 0, len(lines))
+	for i, line := range lines {
+		if i > 0 {
+			brs = append(brs, DecodeBr{})
+		}
+		runs = append(runs, DecodeRuns{Text: line})
+	}
+
+	order := make([]paragraphOrderEntry, 0, len(runs)+len(brs))
+	for i := range brs {
+		order = append(order, paragraphOrderEntry{kind: paragraphOrderRun, index: i})
+		order = append(order, paragraphOrderEntry{kind: paragraphOrderBr, index: i})
+	}
+	order = append(order, paragraphOrderEntry{kind: paragraphOrderRun, index: len(brs)})
+
+	return DecodeParagraph{
+		Runs:           runs,
+		Breaks:         brs,
+		paragraphOrder: order,
+	}
+}
+
 // SetShapeText provides a function to set the text of the shape by the given
 // shape id, replacing the paragraph of the text body of the shape: the text
 // is set as a single paragraph with one run per line and a line break
@@ -259,30 +297,7 @@ func (f *File) SetShapeText(slideID int, shapeID int, text string) error {
 		return err
 	}
 
-	lines := strings.Split(text, "\n")
-	runs := make([]DecodeRuns, 0, len(lines))
-	brs := make([]DecodeBr, 0, len(lines))
-	for i, line := range lines {
-		if i > 0 {
-			brs = append(brs, DecodeBr{})
-		}
-		runs = append(runs, DecodeRuns{Text: line})
-	}
-
-	// the runs and the line breaks are interleaved in the document order:
-	// line 1, break, line 2, break, ...
-	order := make([]paragraphOrderEntry, 0, len(runs)+len(brs))
-	for i := range brs {
-		order = append(order, paragraphOrderEntry{kind: paragraphOrderRun, index: i})
-		order = append(order, paragraphOrderEntry{kind: paragraphOrderBr, index: i})
-	}
-	order = append(order, paragraphOrderEntry{kind: paragraphOrderRun, index: len(brs)})
-
-	paragraph := DecodeParagraph{
-		Runs:           runs,
-		Breaks:         brs,
-		paragraphOrder: order,
-	}
+	paragraph := newSetShapeTextParagraph(text)
 
 	for i := range slide.CommonSlideData.ShapeTree.Children {
 		shape := slide.CommonSlideData.ShapeTree.Children[i].Shape
@@ -639,31 +654,37 @@ func (f *File) CreateShape(slideID int, shapeProperties DecodeShapeProperties, t
 	// cxnSp), the same way AddImage and CreateConnector allocate shape ids
 	shapeID := f.nextShapeID(slide)
 
-	// the body properties element is required in the text body by the schema
-	if textBody.BodyProperties == nil {
-		textBody.BodyProperties = &DecodeBodyProperties{}
-	}
-
-	newShape := decodeShape{
-		NonVisualShapeProperties: &decodeNonVisualShapeProperties{
-			CommonNonVisualProperties: &decodeCommonNonVisualProperties{
-				ID: shapeID,
-			},
-			// the shape non-visual properties and the non-visual properties
-			// elements are expected by the consumers (PowerPoint writes them
-			// for every shape, python-pptx requires the former)
-			CommonNonVisualShapeProperties: &decodeCommonNonVisualShapeProperties{},
-			NonVisualProperties:            &decodeNonVisualProperties{},
-		},
-		ShapeProperties: &shapeProperties,
-		TextBody:        &textBody,
-	}
+	newShape := newDecodeShape(shapeID, shapeProperties, textBody)
 
 	// the new shape is appended to the end of the shape tree: it is drawn
 	// above the existing shapes of the slide
 	slide.CommonSlideData.ShapeTree.Children = append(slide.CommonSlideData.ShapeTree.Children, decodeShapeTreeChild{Shape: &newShape})
 
 	return shapeID, nil
+}
+
+// newDecodeShape provides a function to create the shape of the shape tree
+// (p:sp) with the given id, the shape properties and the text body. The body
+// properties element is required in the text body by the schema, the shape
+// non-visual properties and the non-visual properties elements are expected
+// by the consumers (PowerPoint writes them for every shape, python-pptx
+// requires the former).
+func newDecodeShape(shapeID int, shapeProperties DecodeShapeProperties, textBody DecodeTextBody) decodeShape {
+	if textBody.BodyProperties == nil {
+		textBody.BodyProperties = &DecodeBodyProperties{}
+	}
+
+	return decodeShape{
+		NonVisualShapeProperties: &decodeNonVisualShapeProperties{
+			CommonNonVisualProperties: &decodeCommonNonVisualProperties{
+				ID: shapeID,
+			},
+			CommonNonVisualShapeProperties: &decodeCommonNonVisualShapeProperties{},
+			NonVisualProperties:            &decodeNonVisualProperties{},
+		},
+		ShapeProperties: &shapeProperties,
+		TextBody:        &textBody,
+	}
 }
 
 // DeleteShape provides a function to delete shape on slide by given shape id.

@@ -33,6 +33,7 @@ const (
 const (
 	ContentTypePresentationML                     = "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
 	ContentTypeSlideML                            = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
+	ContentTypeSlideLayoutML                      = "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
 	ContentTypeNotesMasterML                      = "application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml"
 	ContentTypeNotesSlideML                       = "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"
 	ContentTypeThemeML                            = "application/vnd.openxmlformats-officedocument.theme+xml"
@@ -50,6 +51,7 @@ const (
 	SourceRelationshipNotesSlide                  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
 	SourceRelationshipOfficeDocument              = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
 	SourceRelationshipSlide                       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
+	SourceRelationshipSlideLayout                 = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
 	StrictNameSpaceDocumentPropertiesVariantTypes = "http://purl.oclc.org/ooxml/officeDocument/docPropsVTypes"
 	StrictNameSpaceDrawingMLMain                  = "http://purl.oclc.org/ooxml/drawingml/main"
 	StrictNameSpaceExtendedProperties             = "http://purl.oclc.org/ooxml/officeDocument/extendedProperties"

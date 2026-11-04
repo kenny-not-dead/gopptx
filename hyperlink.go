@@ -107,7 +107,7 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 		}
 
 		if pic != nil {
-			pic.NonVisualPictureProperties.CommonNonVisualProperties.HlinkClick = nil
+			pic.NonVisualPictureProperties.CommonNonVisualProperties.HyperlinkClick = nil
 		}
 
 		slidePath, _ := f.getSlideXMLPath(slideID)
@@ -130,7 +130,7 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 	if shape != nil {
 		setShapeRunHyperlinks(shape, hlink)
 	} else {
-		pic.NonVisualPictureProperties.CommonNonVisualProperties.HlinkClick = &DecodeHyperlink{
+		pic.NonVisualPictureProperties.CommonNonVisualProperties.HyperlinkClick = &DecodeHyperlink{
 			ID:      hlink.ID,
 			Action:  hlink.Action,
 			Tooltip: hlink.Tooltip,
@@ -398,7 +398,7 @@ func setShapeRunHyperlinks(shape *decodeShape, hlink *Hyperlink) {
 		if *rp == nil {
 			*rp = new(DecodeRunProperties)
 		}
-		(*rp).HlinkClick = &DecodeHyperlink{ID: hlink.ID, Action: hlink.Action, Tooltip: hlink.Tooltip}
+		(*rp).HyperlinkClick = &DecodeHyperlink{ID: hlink.ID, Action: hlink.Action, Tooltip: hlink.Tooltip}
 	}
 	runCount := 0
 	for p := range shape.TextBody.Paragraph {
@@ -424,11 +424,11 @@ func clearShapeRunHyperlinks(shape *decodeShape) {
 		paragraph := &shape.TextBody.Paragraph[p]
 		for r := range paragraph.Runs {
 			if rp := paragraph.Runs[r].RunProperties; rp != nil {
-				rp.HlinkClick = nil
+				rp.HyperlinkClick = nil
 			}
 		}
 		if rp := paragraph.EndParagraphRunProperties; rp != nil {
-			rp.HlinkClick = nil
+			rp.HyperlinkClick = nil
 		}
 	}
 }
@@ -450,11 +450,11 @@ func (f *File) removeUnusedLinkRels(slide *decodeSlide, slidePath string) {
 			if cnv == nil {
 				return
 			}
-			if cnv.HlinkClick != nil {
-				mark(cnv.HlinkClick.ID)
+			if cnv.HyperlinkClick != nil {
+				mark(cnv.HyperlinkClick.ID)
 			}
-			if cnv.HlinkMouseOver != nil {
-				mark(cnv.HlinkMouseOver.ID)
+			if cnv.HyperlinkMouseOver != nil {
+				mark(cnv.HyperlinkMouseOver.ID)
 			}
 		}
 		if child.Shape != nil {
@@ -466,20 +466,20 @@ func (f *File) removeUnusedLinkRels(slide *decodeSlide, slidePath string) {
 					paragraph := &child.Shape.TextBody.Paragraph[p]
 					for r := range paragraph.Runs {
 						if rp := paragraph.Runs[r].RunProperties; rp != nil {
-							if rp.HlinkClick != nil {
-								mark(rp.HlinkClick.ID)
+							if rp.HyperlinkClick != nil {
+								mark(rp.HyperlinkClick.ID)
 							}
-							if rp.HlinkMouseOver != nil {
-								mark(rp.HlinkMouseOver.ID)
+							if rp.HyperlinkMouseOver != nil {
+								mark(rp.HyperlinkMouseOver.ID)
 							}
 						}
 					}
 					if rp := paragraph.EndParagraphRunProperties; rp != nil {
-						if rp.HlinkClick != nil {
-							mark(rp.HlinkClick.ID)
+						if rp.HyperlinkClick != nil {
+							mark(rp.HyperlinkClick.ID)
 						}
-						if rp.HlinkMouseOver != nil {
-							mark(rp.HlinkMouseOver.ID)
+						if rp.HyperlinkMouseOver != nil {
+							mark(rp.HyperlinkMouseOver.ID)
 						}
 					}
 				}
@@ -515,7 +515,7 @@ func (f *File) removeUnusedLinkRels(slide *decodeSlide, slidePath string) {
 func shapeHyperlinkID(shape *decodeShape, pic *decodePicture) (string, error) {
 	if pic != nil && pic.NonVisualPictureProperties != nil &&
 		pic.NonVisualPictureProperties.CommonNonVisualProperties != nil {
-		if hlink := pic.NonVisualPictureProperties.CommonNonVisualProperties.HlinkClick; hlink != nil {
+		if hlink := pic.NonVisualPictureProperties.CommonNonVisualProperties.HyperlinkClick; hlink != nil {
 			return hlink.ID, nil
 		}
 	}
@@ -526,7 +526,7 @@ func shapeHyperlinkID(shape *decodeShape, pic *decodePicture) (string, error) {
 
 	if shape.NonVisualShapeProperties != nil &&
 		shape.NonVisualShapeProperties.CommonNonVisualProperties != nil {
-		if hlink := shape.NonVisualShapeProperties.CommonNonVisualProperties.HlinkClick; hlink != nil {
+		if hlink := shape.NonVisualShapeProperties.CommonNonVisualProperties.HyperlinkClick; hlink != nil {
 			return hlink.ID, nil
 		}
 	}
@@ -539,18 +539,18 @@ func shapeHyperlinkID(shape *decodeShape, pic *decodePicture) (string, error) {
 	for p := range shape.TextBody.Paragraph {
 		paragraph := &shape.TextBody.Paragraph[p]
 		for r := range paragraph.Runs {
-			if rp := paragraph.Runs[r].RunProperties; rp != nil && rp.HlinkClick != nil {
+			if rp := paragraph.Runs[r].RunProperties; rp != nil && rp.HyperlinkClick != nil {
 				if id == "" {
-					id = rp.HlinkClick.ID
-				} else if id != rp.HlinkClick.ID {
+					id = rp.HyperlinkClick.ID
+				} else if id != rp.HyperlinkClick.ID {
 					return "", ErrShapeHyperlinkAmbiguous
 				}
 			}
 		}
-		if rp := paragraph.EndParagraphRunProperties; rp != nil && rp.HlinkClick != nil {
+		if rp := paragraph.EndParagraphRunProperties; rp != nil && rp.HyperlinkClick != nil {
 			if id == "" {
-				id = rp.HlinkClick.ID
-			} else if id != rp.HlinkClick.ID {
+				id = rp.HyperlinkClick.ID
+			} else if id != rp.HyperlinkClick.ID {
 				return "", ErrShapeHyperlinkAmbiguous
 			}
 		}

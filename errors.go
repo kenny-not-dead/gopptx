@@ -66,6 +66,43 @@ func (err ErrSlideNotExist) Error() string {
 	return fmt.Sprintf("slide %d does not exist", err.SlideID)
 }
 
+// ErrSlideLayoutNotExist defined an error of the slide layout that does not
+// exist (the slide layout id is the id attribute of the p:sldLayoutId element
+// of the slide master).
+type ErrSlideLayoutNotExist struct {
+	LayoutID int
+}
+
+// Error returns the error message on receiving the non existing slide layout.
+func (err ErrSlideLayoutNotExist) Error() string {
+	return fmt.Sprintf("slide layout %d does not exist", err.LayoutID)
+}
+
+// ErrSlideMasterNotExist defined an error of the slide master that does not
+// exist (the slide master id is the id attribute of the p:sldMasterId element
+// of the presentation).
+type ErrSlideMasterNotExist struct {
+	MasterID int
+}
+
+// Error returns the error message on receiving the non existing slide master.
+func (err ErrSlideMasterNotExist) Error() string {
+	return fmt.Sprintf("slide master %d does not exist", err.MasterID)
+}
+
+// ErrSlideMasterUnsupported defined an error of the slide master that
+// contains an element not supported by the slide master modification, so the
+// master cannot be modified.
+type ErrSlideMasterUnsupported struct {
+	Master  string
+	Element string
+}
+
+// Error returns the error message on receiving the unsupported slide master.
+func (err ErrSlideMasterUnsupported) Error() string {
+	return fmt.Sprintf("the slide master %s contains the unsupported element %q", err.Master, err.Element)
+}
+
 // newUnzipSizeLimitError returns an error when the unzipped content exceeds the specified limit.
 func newUnzipSizeLimitError(unzipSizeLimit int64) error {
 	return fmt.Errorf("unzip size exceeds the %d bytes limit", unzipSizeLimit)
@@ -188,4 +225,17 @@ type ErrLinkTargetInvalid struct {
 // internal hyperlink.
 func (err ErrLinkTargetInvalid) Error() string {
 	return fmt.Sprintf("the link target %q is not a slide id", err.Target)
+}
+
+// ErrSlideLayoutUnsupported defined an error of the slide layout that
+// contains an element not supported by the slide numbers feature
+// (SetSlideNumbers), so the layout cannot be modified.
+type ErrSlideLayoutUnsupported struct {
+	Layout  string
+	Element string
+}
+
+// Error returns the error message on receiving the unsupported slide layout.
+func (err ErrSlideLayoutUnsupported) Error() string {
+	return fmt.Sprintf("the slide layout %s contains the unsupported element %q", err.Layout, err.Element)
 }
