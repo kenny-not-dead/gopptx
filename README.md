@@ -389,7 +389,7 @@ func main() {
             SolidFill: &gopptx.DecodeSolidFill{
                 SolidRGBColor: &gopptx.SolidRGBColor{Val: "394655"},
             },
-            PrstDash: &gopptx.PrstDash{Val: "dash"},
+            PresetDash: &gopptx.PresetDash{Val: "dash"},
         },
     })
     if err != nil {

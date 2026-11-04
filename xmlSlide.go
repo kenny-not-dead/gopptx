@@ -24,12 +24,56 @@ type Slide struct {
 	XMLNSP15               string            `xml:"xmlns:p15,attr"`
 	XMLNSMC                string            `xml:"xmlns:mc,attr"`
 	CommonSlideData        SlideData         `xml:"p:cSld"`
-	ColorMapOverride       *ClrMapOverride   `xml:"p:clrMapOvr,omitempty"`
+	ColorMapOverride       *ColorMapOverride `xml:"p:clrMapOvr,omitempty"`
 	AlternateContent       *alternateContent `xml:"mc:AlternateContent"`
 	DecodeAlternateContent *innerXML         `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
 }
 
+// slideLayoutPart mirrors the Slide struct for the serialize of the slide
+// layout part: the root element is p:sldLayout, the content model is the
+// same as the slide (the root element attributes of the part are restored
+// from the origin part by the replaceNameSpaceBytes function).
+type slideLayoutPart struct {
+	XMLName          xml.Name          `xml:"p:sldLayout"`
+	XMLNSA           string            `xml:"xmlns:a,attr"`
+	XMLNSP           string            `xml:"xmlns:p,attr"`
+	XMLNSR           string            `xml:"xmlns:r,attr"`
+	XMLNSP14         string            `xml:"xmlns:p14,attr"`
+	XMLNSP15         string            `xml:"xmlns:p15,attr"`
+	XMLNSMC          string            `xml:"xmlns:mc,attr"`
+	CommonSlideData  SlideData         `xml:"p:cSld"`
+	ColorMapOverride *ColorMapOverride `xml:"p:clrMapOvr,omitempty"`
+	AlternateContent *alternateContent `xml:"mc:AlternateContent"`
+	ExtLst           *innerXML         `xml:"p:extLst,omitempty"`
+}
+
+// slideMasterPart mirrors the Slide struct for the serialize of the slide
+// master part: the root element is p:sldMaster, the cSld element is the same
+// as the cSld element of the slide, the other elements are written from the
+// origin part as-is (the root element attributes of the part are restored
+// from the origin part by the replaceNameSpaceBytes function).
+type slideMasterPart struct {
+	XMLName           xml.Name            `xml:"p:sldMaster"`
+	XMLNSA            string              `xml:"xmlns:a,attr"`
+	XMLNSP            string              `xml:"xmlns:p,attr"`
+	XMLNSR            string              `xml:"xmlns:r,attr"`
+	XMLNSP14          string              `xml:"xmlns:p14,attr"`
+	XMLNSP15          string              `xml:"xmlns:p15,attr"`
+	XMLNSMC           string              `xml:"xmlns:mc,attr"`
+	CommonSlideData   SlideData           `xml:"p:cSld"`
+	ColorMap          *decodeColorMap     `xml:"p:clrMap"`
+	SlideLayoutIDList *innerXML           `xml:"p:sldLayoutIdLst"`
+	Transition        *innerXML           `xml:"p:transition"`
+	Timing            *innerXML           `xml:"p:timing"`
+	HeaderFooter      *decodeHeaderFooter `xml:"p:hf"`
+	TextStyles        *innerXML           `xml:"p:txStyles"`
+	ExtLst            *innerXML           `xml:"p:extLst"`
+}
+
 type SlideData struct {
+	// Name is the name attribute of the common slide data (p:cSld) element
+	// (the name of the layout for the slide layout parts).
+	Name       string    `xml:"name,attr,omitempty"`
 	Background *bg       `xml:"p:bg,omitempty"`
 	ShapeTree  ShapeTree `xml:"p:spTree"`
 	ExtLst     *ExtLst   `xml:"p:extLst,omitempty"`
@@ -280,15 +324,15 @@ type FillRect struct {
 	Bot   *int `xml:"b,attr,omitempty"`
 }
 
-// ClrMapOverride defines the color map override (p:clrMapOvr) element of
+// ColorMapOverride defines the color map override (p:clrMapOvr) element of
 // the slide.
-type ClrMapOverride struct {
-	MasterClrMapping *MasterClrMapping `xml:"a:masterClrMapping"`
+type ColorMapOverride struct {
+	MasterColorMapping *MasterColorMapping `xml:"a:masterClrMapping"`
 }
 
-// MasterClrMapping defines the master color mapping (a:masterClrMapping)
+// MasterColorMapping defines the master color mapping (a:masterClrMapping)
 // element.
-type MasterClrMapping struct{}
+type MasterColorMapping struct{}
 
 type CommonNonVisualShapeProperties struct {
 	TxBox      *XMLBool    `xml:"txBox,attr,omitempty"`
@@ -297,7 +341,7 @@ type CommonNonVisualShapeProperties struct {
 
 type ShapeProperties struct {
 	Xfrm           *Xfrm           `xml:"a:xfrm"`
-	CustGeom       *innerXML       `xml:"a:custGeom,omitempty"`
+	CustomGeometry *innerXML       `xml:"a:custGeom,omitempty"`
 	PresetGeometry *PresetGeometry `xml:"a:prstGeom,omitempty"`
 	NoFill         *noFill         `xml:"a:noFill,omitempty"`
 	SolidFill      *SolidFill      `xml:"a:solidFill,omitempty"`
@@ -311,14 +355,14 @@ type PresetGeometry struct {
 }
 
 type Line struct {
-	Width     *int       `xml:"w,attr,omitempty"`
-	NoFill    *noFill    `xml:"a:noFill,omitempty"`
-	SolidFill *SolidFill `xml:"a:solidFill,omitempty"`
-	PrstDash  *PrstDash  `xml:"a:prstDash,omitempty"`
+	Width      *int        `xml:"w,attr,omitempty"`
+	NoFill     *noFill     `xml:"a:noFill,omitempty"`
+	SolidFill  *SolidFill  `xml:"a:solidFill,omitempty"`
+	PresetDash *PresetDash `xml:"a:prstDash,omitempty"`
 }
 
-// PrstDash defines the preset dash style (a:prstDash) element of the line.
-type PrstDash struct {
+// PresetDash defines the preset dash style (a:prstDash) element of the line.
+type PresetDash struct {
 	Val string `xml:"val,attr"`
 }
 
@@ -458,6 +502,7 @@ type ParagraphProperties struct {
 	SpacingAfter     *SpacingChange `xml:"a:spcAft,omitempty"`
 	BuFont           *BulletFont    `xml:"a:buFont,omitempty"`
 	BuChar           *BulletChar    `xml:"a:buChar,omitempty"`
+	BuAutoNum        *BulletAutoNum `xml:"a:buAutoNum,omitempty"`
 	BuNone           *struct{}      `xml:"a:buNone,omitempty"`
 	DefRunProperties *RunProperties `xml:"a:defRPr,omitempty"`
 }
@@ -474,6 +519,18 @@ type BulletChar struct {
 	Char string `xml:"char,attr,omitempty"`
 }
 
+// BulletAutoNum defines the a:buAutoNum element of the paragraph properties:
+// the auto numbering of the paragraph (a numbered list). The type is the
+// numbering scheme of the list (ST_TextAutoNumberType), for example
+// "arabicPeriod" (1. 2. 3.), "alphaLcPeriod" (a. b. c.) or "romanUcPeriod"
+// (I. II. III.), the startAt is the number to start the list at. The
+// numbering continues between the paragraphs of the text body that use the
+// same numbering scheme.
+type BulletAutoNum struct {
+	Type    string `xml:"type,attr"`
+	StartAt *int   `xml:"startAt,attr,omitempty"`
+}
+
 // SpacingChange defines the spacing before (a:spcBef) or spacing after
 // (a:spcAft) element of the paragraph properties.
 type SpacingChange struct {
@@ -487,19 +544,19 @@ type Runs struct {
 }
 
 type RunProperties struct {
-	Bold           *int       `xml:"b,attr,omitempty"`
-	Lang           string     `xml:"lang,attr,omitempty"`
-	Size           *int       `xml:"sz,attr,omitempty"`
-	Space          *int       `xml:"spc,attr,omitempty"`
-	Strike         string     `xml:"strike,attr,omitempty"`
-	Dirty          *XMLBool   `xml:"dirty,attr,omitempty"`
-	Err            *XMLBool   `xml:"err,attr,omitempty"`
-	SolidFill      *SolidFill `xml:"a:solidFill,omitempty"`
-	Latin          *Font      `xml:"a:latin,omitempty"`
-	EastAsian      *Font      `xml:"a:ea,omitempty"`
-	ComplexScript  *Font      `xml:"a:cs,omitempty"`
-	HlinkClick     *Hyperlink `xml:"a:hlinkClick,omitempty"`
-	HlinkMouseOver *Hyperlink `xml:"a:hlinkMouseOver,omitempty"`
+	Bold               *int       `xml:"b,attr,omitempty"`
+	Lang               string     `xml:"lang,attr,omitempty"`
+	Size               *int       `xml:"sz,attr,omitempty"`
+	Space              *int       `xml:"spc,attr,omitempty"`
+	Strike             string     `xml:"strike,attr,omitempty"`
+	Dirty              *XMLBool   `xml:"dirty,attr,omitempty"`
+	Err                *XMLBool   `xml:"err,attr,omitempty"`
+	SolidFill          *SolidFill `xml:"a:solidFill,omitempty"`
+	Latin              *Font      `xml:"a:latin,omitempty"`
+	EastAsian          *Font      `xml:"a:ea,omitempty"`
+	ComplexScript      *Font      `xml:"a:cs,omitempty"`
+	HyperlinkClick     *Hyperlink `xml:"a:hlinkClick,omitempty"`
+	HyperlinkMouseOver *Hyperlink `xml:"a:hlinkMouseOver,omitempty"`
 }
 type SolidFill struct {
 	SolidRGBColor *SolidRGBColor `xml:"a:srgbClr"`
@@ -514,12 +571,68 @@ type decodeSlide struct {
 	DecodeAlternateContent *innerXML             `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
 }
 
+// decodeSlideLayout directly maps the sldLayout element of the slide layout
+// part: the cSld element is the same as the cSld element of the slide.
+type decodeSlideLayout struct {
+	XMLName                xml.Name              `xml:"sldLayout"`
+	CommonSlideData        decodeSlideData       `xml:"cSld"`
+	ColorMapOverride       *decodeClrMapOverride `xml:"clrMapOvr,omitempty"`
+	DecodeAlternateContent *innerXML             `xml:"http://schemas.openxmlformats.org/markup-compatibility/2006 AlternateContent"`
+	ExtLst                 *innerXML             `xml:"extLst,omitempty"`
+}
+
+// decodeSlideMaster directly maps the sldMaster element of the slide master
+// part: the cSld element is the same as the cSld element of the slide, the
+// color map is modeled by the attributes, the other elements (the slide
+// layout id list, the transition, the timing, the header footer, the text
+// styles and the extension list) are kept as-is (the order of the elements
+// of the slide master by the schema).
+type decodeSlideMaster struct {
+	XMLName           xml.Name            `xml:"sldMaster"`
+	CommonSlideData   decodeSlideData     `xml:"cSld"`
+	ColorMap          *decodeColorMap     `xml:"clrMap"`
+	SlideLayoutIDList *innerXML           `xml:"sldLayoutIdLst"`
+	Transition        *innerXML           `xml:"transition"`
+	Timing            *innerXML           `xml:"timing"`
+	HeaderFooter      *decodeHeaderFooter `xml:"hf"`
+	TextStyles        *innerXML           `xml:"txStyles"`
+	ExtLst            *innerXML           `xml:"extLst"`
+}
+
 // decodeClrMapOverride directly maps the clrMapOvr element of the slide.
 type decodeClrMapOverride struct {
-	MasterClrMapping *MasterClrMapping `xml:"masterClrMapping,omitempty"`
+	MasterClrMapping *MasterColorMapping `xml:"masterClrMapping,omitempty"`
+}
+
+// decodeColorMap directly maps the clrMap element (CT_ColorMapping) of the
+// slide master: the color mapping of the master (the attributes only).
+type decodeColorMap struct {
+	BG1      string `xml:"bg1,attr"`
+	BG2      string `xml:"bg2,attr"`
+	TX1      string `xml:"tx1,attr"`
+	TX2      string `xml:"tx2,attr"`
+	Accent1  string `xml:"accent1,attr"`
+	Accent2  string `xml:"accent2,attr"`
+	Accent3  string `xml:"accent3,attr"`
+	Accent4  string `xml:"accent4,attr"`
+	Accent5  string `xml:"accent5,attr"`
+	Accent6  string `xml:"accent6,attr"`
+	HLink    string `xml:"hlink,attr"`
+	FolHLink string `xml:"folHlink,attr"`
+}
+
+// decodeHeaderFooter directly maps the hf element (CT_HeaderFooter) of the
+// slide master: the header footer options (the attributes only). The
+// attributes are optional, so the absent attribute is omitted on the
+// round trip (the omitempty tag).
+type decodeHeaderFooter struct {
+	Date   string `xml:"dt,attr,omitempty"`
+	Footer string `xml:"ftr,attr,omitempty"`
+	Header string `xml:"hdr,attr,omitempty"`
 }
 
 type decodeSlideData struct {
+	Name       string            `xml:"name,attr,omitempty"`
 	Background *DecodeBackground `xml:"bg,omitempty"`
 	ShapeTree  decodeShapeTree   `xml:"spTree"`
 	ExtLst     *innerXML         `xml:"extLst,omitempty"`
@@ -621,12 +734,12 @@ type decodeNonVisualGroupShapeProperties struct {
 }
 
 type CommonNonVisualProperties struct {
-	ID             int        `xml:"id,attr"`
-	Name           string     `xml:"name,attr"`
-	Title          string     `xml:"title,attr,omitempty"`
-	HlinkClick     *Hyperlink `xml:"a:hlinkClick,omitempty"`
-	HlinkMouseOver *Hyperlink `xml:"a:hlinkMouseOver,omitempty"`
-	ExtLst         *ExtLst    `xml:"a:extLst,omitempty"`
+	ID                 int        `xml:"id,attr"`
+	Name               string     `xml:"name,attr"`
+	Title              string     `xml:"title,attr,omitempty"`
+	HyperlinkClick     *Hyperlink `xml:"a:hlinkClick,omitempty"`
+	HyperlinkMouseOver *Hyperlink `xml:"a:hlinkMouseOver,omitempty"`
+	ExtLst             *ExtLst    `xml:"a:extLst,omitempty"`
 }
 
 // ExtLst defines the extension list (a:extLst) element of the common
@@ -719,12 +832,12 @@ type decodeNonVisualConnectorProperties struct {
 // decodeCommonNonVisualProperties directly maps the cNvPr element of the
 // non-visual properties.
 type decodeCommonNonVisualProperties struct {
-	ID             int              `xml:"id,attr"`
-	Name           string           `xml:"name,attr"`
-	Title          string           `xml:"title,attr,omitempty"`
-	HlinkClick     *DecodeHyperlink `xml:"hlinkClick,omitempty"`
-	HlinkMouseOver *DecodeHyperlink `xml:"hlinkMouseOver,omitempty"`
-	ExtLst         *innerXML        `xml:"extLst,omitempty"`
+	ID                 int              `xml:"id,attr"`
+	Name               string           `xml:"name,attr"`
+	Title              string           `xml:"title,attr,omitempty"`
+	HyperlinkClick     *DecodeHyperlink `xml:"hlinkClick,omitempty"`
+	HyperlinkMouseOver *DecodeHyperlink `xml:"hlinkMouseOver,omitempty"`
+	ExtLst             *innerXML        `xml:"extLst,omitempty"`
 }
 
 // decodeBlipFill directly maps the blipFill element of the picture.
@@ -762,7 +875,7 @@ type ShapeLocks struct {
 
 type DecodeShapeProperties struct {
 	Xfrm           *DecodeXfrm           `xml:"xfrm"`
-	CustGeom       *innerXML             `xml:"custGeom,omitempty"`
+	CustomGeometry *innerXML             `xml:"custGeom,omitempty"`
 	PresetGeometry *DecodePresetGeometry `xml:"prstGeom,omitempty"`
 	NoFill         *noFill               `xml:"noFill,omitempty"`
 	SolidFill      *DecodeSolidFill      `xml:"solidFill,omitempty"`
@@ -787,10 +900,10 @@ type AdjustValue struct {
 
 // DecodeLine directly maps the ln element of the shape properties.
 type DecodeLine struct {
-	Width     *int             `xml:"w,attr,omitempty"`
-	NoFill    *noFill          `xml:"noFill,omitempty"`
-	SolidFill *DecodeSolidFill `xml:"solidFill,omitempty"`
-	PrstDash  *PrstDash        `xml:"prstDash,omitempty"`
+	Width      *int             `xml:"w,attr,omitempty"`
+	NoFill     *noFill          `xml:"noFill,omitempty"`
+	SolidFill  *DecodeSolidFill `xml:"solidFill,omitempty"`
+	PresetDash *PresetDash      `xml:"prstDash,omitempty"`
 }
 
 type DecodeTextBody struct {
@@ -934,6 +1047,15 @@ const FieldSlideNumber = "slidenum"
 // (the a:fld element of the type "slidenum") of the paragraph. The id of the
 // field is a new random GUID, the text is the cached value shown before the
 // field is updated by PowerPoint.
+//
+// The field is the manual (custom) way to show the slide number: it is
+// placed into the text of a single slide (for example into a text box
+// created by CreateShape and SetShapeTextBody), so the number appears only
+// on that slide and is not connected to the slide layouts — the new slides
+// have no such text box. The standard mechanism of the slide number of the
+// presentation (the number on all the slides, including the new ones, the
+// same as the "Insert > Slide number" dialog of PowerPoint) is the slide
+// number placeholder of the slide layouts — see SetSlideNumbers.
 func NewSlideNumberField() DecodeField {
 	return DecodeField{
 		ID:            newGUID(),
@@ -945,7 +1067,11 @@ func NewSlideNumberField() DecodeField {
 
 // newGUID provides a function to generate a random GUID (RFC 4122, version
 // 4) in the upper-case braced form (the same form the ids of the fields
-// (a:fld) and the table styles written by PowerPoint use).
+// (a:fld) and the table styles written by PowerPoint use). The GUID is not
+// generated by the github.com/google/uuid package: the package does not
+// generate the upper-case braced form (its String method returns the
+// lower-case unbraced form, so the form would be built around it anyway),
+// and the library keeps the external dependencies to a minimum.
 func newGUID() string {
 	b := make([]byte, 16)
 	_, _ = crand.Read(b)
@@ -966,6 +1092,7 @@ type DecodeParagraphProperties struct {
 	SpacingAfter     *DecodeSpacingChange `xml:"spcAft,omitempty"`
 	BuFont           *DecodeBulletFont    `xml:"buFont,omitempty"`
 	BuChar           *DecodeBulletChar    `xml:"buChar,omitempty"`
+	BuAutoNum        *DecodeBulletAutoNum `xml:"buAutoNum,omitempty"`
 	BuNone           *struct{}            `xml:"buNone,omitempty"`
 	DefRunProperties *DecodeRunProperties `xml:"defRPr,omitempty"`
 }
@@ -980,6 +1107,13 @@ type DecodeBulletFont struct {
 // properties: the character used as the bullet.
 type DecodeBulletChar struct {
 	Char string `xml:"char,attr,omitempty"`
+}
+
+// DecodeBulletAutoNum directly maps the buAutoNum element of the paragraph
+// properties: the auto numbering of the paragraph (a numbered list).
+type DecodeBulletAutoNum struct {
+	Type    string `xml:"type,attr"`
+	StartAt *int   `xml:"startAt,attr,omitempty"`
 }
 
 // DecodeLineSpacing directly maps the lnSpc element of the paragraph
@@ -1014,19 +1148,19 @@ type DecodeRuns struct {
 }
 
 type DecodeRunProperties struct {
-	Bold           *int             `xml:"b,attr,omitempty"`
-	Lang           string           `xml:"lang,attr,omitempty"`
-	Size           *int             `xml:"sz,attr,omitempty"`
-	Space          *int             `xml:"spc,attr,omitempty"`
-	Strike         string           `xml:"strike,attr,omitempty"`
-	Dirty          *XMLBool         `xml:"dirty,attr,omitempty"`
-	Err            *XMLBool         `xml:"err,attr,omitempty"`
-	SolidFill      *DecodeSolidFill `xml:"solidFill,omitempty"`
-	Latin          *Font            `xml:"latin,omitempty"`
-	EastAsian      *Font            `xml:"ea,omitempty"`
-	ComplexScript  *Font            `xml:"cs,omitempty"`
-	HlinkClick     *DecodeHyperlink `xml:"hlinkClick,omitempty"`
-	HlinkMouseOver *DecodeHyperlink `xml:"hlinkMouseOver,omitempty"`
+	Bold               *int             `xml:"b,attr,omitempty"`
+	Lang               string           `xml:"lang,attr,omitempty"`
+	Size               *int             `xml:"sz,attr,omitempty"`
+	Space              *int             `xml:"spc,attr,omitempty"`
+	Strike             string           `xml:"strike,attr,omitempty"`
+	Dirty              *XMLBool         `xml:"dirty,attr,omitempty"`
+	Err                *XMLBool         `xml:"err,attr,omitempty"`
+	SolidFill          *DecodeSolidFill `xml:"solidFill,omitempty"`
+	Latin              *Font            `xml:"latin,omitempty"`
+	EastAsian          *Font            `xml:"ea,omitempty"`
+	ComplexScript      *Font            `xml:"cs,omitempty"`
+	HyperlinkClick     *DecodeHyperlink `xml:"hlinkClick,omitempty"`
+	HyperlinkMouseOver *DecodeHyperlink `xml:"hlinkMouseOver,omitempty"`
 }
 
 type DecodeSolidFill struct {
@@ -1039,10 +1173,12 @@ type SolidRGBColor struct {
 
 // Hyperlink defines the hyperlink (a:hlinkClick or a:hlinkMouseOver) element
 // of the run properties or of the common non-visual properties: the id of the
-// hyperlink relationship in the slide rels part and the tooltip shown on
-// hover.
+// hyperlink relationship in the slide rels part, the action of the internal
+// hyperlink (for example "ppaction://hlinksldjump" for the link to a slide)
+// and the tooltip shown on hover.
 type Hyperlink struct {
 	ID      string `xml:"r:id,attr"`
+	Action  string `xml:"action,attr,omitempty"`
 	Tooltip string `xml:"tooltip,attr,omitempty"`
 }
 
@@ -1050,6 +1186,7 @@ type Hyperlink struct {
 // the run properties or of the common non-visual properties.
 type DecodeHyperlink struct {
 	ID      string `xml:"http://schemas.openxmlformats.org/officeDocument/2006/relationships id,attr"`
+	Action  string `xml:"action,attr,omitempty"`
 	Tooltip string `xml:"tooltip,attr,omitempty"`
 }
 

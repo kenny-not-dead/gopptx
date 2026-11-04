@@ -48,9 +48,8 @@ type presentation struct {
 	ExtList                *innerXML         `xml:"p:extLst"`
 }
 
-// TODO
 type masterSlideList struct {
-	MasterSlide slideID `xml:"p:sldMasterId"`
+	MasterSlide []slideID `xml:"p:sldMasterId"`
 }
 
 // notesMasterList defines the notes master id list (p:notesMasterIdLst)
@@ -91,7 +90,7 @@ type decodePresentation struct {
 }
 
 type decodeMasterSlideList struct {
-	MasterSlide decodeSlideID `xml:"sldMasterId"`
+	MasterSlide []decodeSlideID `xml:"sldMasterId"`
 }
 
 // decodeNotesMasterList defines the notes master id list (notesMasterIdLst)

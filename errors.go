@@ -39,8 +39,8 @@ var (
 	// child of the shape tree must be contained in the order exactly once.
 	ErrShapeOrderInvalid = errors.New("the order of the shapes does not match the shape tree of the slide")
 	// ErrInvalidLinkType is returned when the given hyperlink link type is
-	// not supported: the link type must be LinkTypeExternal or LinkTypeNone.
-	ErrInvalidLinkType = errors.New("the link type must be LinkTypeExternal or LinkTypeNone")
+	// not supported: the link type must be LinkTypeExternal, LinkTypeLocation or LinkTypeNone.
+	ErrInvalidLinkType = errors.New("the link type must be LinkTypeExternal, LinkTypeLocation or LinkTypeNone")
 	// ErrShapeHyperlinkAmbiguous is returned when the shape contains runs
 	// with different hyperlinks, so the hyperlink of the shape is ambiguous.
 	ErrShapeHyperlinkAmbiguous = errors.New("the shape contains runs with different hyperlinks")
@@ -64,6 +64,43 @@ type ErrSlideNotExist struct {
 // Error returns the error message on receiving the non existing slide name.
 func (err ErrSlideNotExist) Error() string {
 	return fmt.Sprintf("slide %d does not exist", err.SlideID)
+}
+
+// ErrSlideLayoutNotExist defined an error of the slide layout that does not
+// exist (the slide layout id is the id attribute of the p:sldLayoutId element
+// of the slide master).
+type ErrSlideLayoutNotExist struct {
+	LayoutID int
+}
+
+// Error returns the error message on receiving the non existing slide layout.
+func (err ErrSlideLayoutNotExist) Error() string {
+	return fmt.Sprintf("slide layout %d does not exist", err.LayoutID)
+}
+
+// ErrSlideMasterNotExist defined an error of the slide master that does not
+// exist (the slide master id is the id attribute of the p:sldMasterId element
+// of the presentation).
+type ErrSlideMasterNotExist struct {
+	MasterID int
+}
+
+// Error returns the error message on receiving the non existing slide master.
+func (err ErrSlideMasterNotExist) Error() string {
+	return fmt.Sprintf("slide master %d does not exist", err.MasterID)
+}
+
+// ErrSlideMasterUnsupported defined an error of the slide master that
+// contains an element not supported by the slide master modification, so the
+// master cannot be modified.
+type ErrSlideMasterUnsupported struct {
+	Master  string
+	Element string
+}
+
+// Error returns the error message on receiving the unsupported slide master.
+func (err ErrSlideMasterUnsupported) Error() string {
+	return fmt.Sprintf("the slide master %s contains the unsupported element %q", err.Master, err.Element)
 }
 
 // newUnzipSizeLimitError returns an error when the unzipped content exceeds the specified limit.
@@ -175,4 +212,30 @@ type ErrImageNotExist struct {
 // relationship.
 func (err ErrImageNotExist) Error() string {
 	return fmt.Sprintf("image relationship %s does not exist", err.RelationshipID)
+}
+
+// ErrLinkTargetInvalid defined an error of the target of the internal
+// hyperlink (the link type LinkTypeLocation): the target must be the id of
+// the target slide of the presentation.
+type ErrLinkTargetInvalid struct {
+	Target string
+}
+
+// Error returns the error message on receiving the invalid target of the
+// internal hyperlink.
+func (err ErrLinkTargetInvalid) Error() string {
+	return fmt.Sprintf("the link target %q is not a slide id", err.Target)
+}
+
+// ErrSlideLayoutUnsupported defined an error of the slide layout that
+// contains an element not supported by the slide numbers feature
+// (SetSlideNumbers), so the layout cannot be modified.
+type ErrSlideLayoutUnsupported struct {
+	Layout  string
+	Element string
+}
+
+// Error returns the error message on receiving the unsupported slide layout.
+func (err ErrSlideLayoutUnsupported) Error() string {
+	return fmt.Sprintf("the slide layout %s contains the unsupported element %q", err.Layout, err.Element)
 }

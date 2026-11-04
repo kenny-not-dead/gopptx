@@ -198,6 +198,89 @@ func TestSlideNumberField(t *testing.T) {
 	}
 }
 
+// TestSetShapeTextBodyBuAutoNum checks that the auto numbering of the
+// paragraph (a:buAutoNum) is written on save and is preserved on the next
+// load.
+func TestSetShapeTextBodyBuAutoNum(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+	slideID := f.GetSlideList()[0]
+	titleID := titleShapeID(t, f, slideID)
+
+	startAt := 3
+	if err := f.SetShapeTextBody(slideID, titleID, DecodeTextBody{
+		BodyProperties: &DecodeBodyProperties{},
+		Paragraph: []DecodeParagraph{
+			{
+				ParagraphProperties: &DecodeParagraphProperties{
+					BuFont:    &DecodeBulletFont{Typeface: "Arial"},
+					BuAutoNum: &DecodeBulletAutoNum{Type: "arabicPeriod"},
+				},
+				Runs: []DecodeRuns{{Text: "First item"}},
+			},
+			{
+				ParagraphProperties: &DecodeParagraphProperties{
+					BuFont:    &DecodeBulletFont{Typeface: "Arial"},
+					BuAutoNum: &DecodeBulletAutoNum{Type: "arabicPeriod", StartAt: &startAt},
+				},
+				Runs: []DecodeRuns{{Text: "Second item"}},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	out := filepath.Join(t.TempDir(), "autonum.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	slideXML := string(readZipPart(t, out, "ppt/slides/slide1.xml"))
+	if !strings.Contains(slideXML, `<a:buAutoNum type="arabicPeriod"/>`) {
+		t.Fatalf("the buAutoNum element is not written in the slide XML:\n%s", slideXML)
+	}
+	if !strings.Contains(slideXML, `<a:buAutoNum type="arabicPeriod" startAt="3"/>`) {
+		t.Fatalf("the buAutoNum element with the startAt attribute is not written in the slide XML:\n%s", slideXML)
+	}
+
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+
+	shapes, err := f2.GetShapes(slideID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body *DecodeTextBody
+	for i := range shapes {
+		shape := &shapes[i]
+		if shape.NonVisualShapeProperties == nil ||
+			shape.NonVisualShapeProperties.CommonNonVisualProperties == nil ||
+			shape.NonVisualShapeProperties.CommonNonVisualProperties.ID != titleID {
+			continue
+		}
+		body = shape.TextBody
+	}
+	if body == nil {
+		t.Fatal("the title text body was not read back")
+	}
+	if len(body.Paragraph) != 2 {
+		t.Fatalf("the number of paragraphs is %d, want 2", len(body.Paragraph))
+	}
+	for i, para := range body.Paragraph {
+		if para.ParagraphProperties == nil || para.ParagraphProperties.BuAutoNum == nil ||
+			para.ParagraphProperties.BuAutoNum.Type != "arabicPeriod" {
+			t.Fatalf("the buAutoNum element of the paragraph %d is not preserved: %+v",
+				i, para.ParagraphProperties)
+		}
+	}
+	got := body.Paragraph[1].ParagraphProperties.BuAutoNum.StartAt
+	if got == nil || *got != startAt {
+		t.Fatalf("the startAt attribute is not preserved: %v", got)
+	}
+}
+
 // TestLoadedTextBreakRoundTrip checks that the line break (a:br) and the
 // slide number field (a:fld) of the real presentation (the fixture with the
 // text box created by python-pptx) are preserved on the round trip: the

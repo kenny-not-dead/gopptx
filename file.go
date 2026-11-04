@@ -304,6 +304,12 @@ func (f *File) presentationWriter() {
 			slides[i] = newSlideID(s)
 		}
 
+		masters := make([]slideID, len(f.Presentation.MasterSlide.MasterSlide))
+
+		for i, m := range f.Presentation.MasterSlide.MasterSlide {
+			masters[i] = newSlideID(m)
+		}
+
 		var notesMaster *notesMasterList
 		if len(f.Presentation.NotesMaster.NotesMaster.RelationshipID) > 0 {
 			notesMaster = &notesMasterList{
@@ -322,7 +328,7 @@ func (f *File) presentationWriter() {
 			XMLNSP15: NameSpacePowerPointR15.Value,
 			XMLNSMC:  SourceRelationshipCompatibility.Value,
 			MasterSlide: masterSlideList{
-				MasterSlide: newSlideID(f.Presentation.MasterSlide.MasterSlide),
+				MasterSlide: masters,
 			},
 			NotesMaster:      notesMaster,
 			Slides:           &slideList{Slide: slides},
@@ -505,6 +511,7 @@ func newHyperlink(dh *DecodeHyperlink) *Hyperlink {
 
 	return &Hyperlink{
 		ID:      dh.ID,
+		Action:  dh.Action,
 		Tooltip: dh.Tooltip,
 	}
 }
@@ -524,17 +531,19 @@ func newCommonNonVisualProperties(
 		Title: dcnvp.Title,
 	}
 
-	if dcnvp.HlinkClick != nil {
-		cnvp.HlinkClick = &Hyperlink{
-			ID:      dcnvp.HlinkClick.ID,
-			Tooltip: dcnvp.HlinkClick.Tooltip,
+	if dcnvp.HyperlinkClick != nil {
+		cnvp.HyperlinkClick = &Hyperlink{
+			ID:      dcnvp.HyperlinkClick.ID,
+			Action:  dcnvp.HyperlinkClick.Action,
+			Tooltip: dcnvp.HyperlinkClick.Tooltip,
 		}
 	}
 
-	if dcnvp.HlinkMouseOver != nil {
-		cnvp.HlinkMouseOver = &Hyperlink{
-			ID:      dcnvp.HlinkMouseOver.ID,
-			Tooltip: dcnvp.HlinkMouseOver.Tooltip,
+	if dcnvp.HyperlinkMouseOver != nil {
+		cnvp.HyperlinkMouseOver = &Hyperlink{
+			ID:      dcnvp.HyperlinkMouseOver.ID,
+			Action:  dcnvp.HyperlinkMouseOver.Action,
+			Tooltip: dcnvp.HyperlinkMouseOver.Tooltip,
 		}
 	}
 
@@ -620,10 +629,10 @@ func newLine(dl *DecodeLine) *Line {
 	}
 
 	return &Line{
-		Width:     dl.Width,
-		NoFill:    dl.NoFill,
-		SolidFill: newSolidFill(dl.SolidFill),
-		PrstDash:  dl.PrstDash,
+		Width:      dl.Width,
+		NoFill:     dl.NoFill,
+		SolidFill:  newSolidFill(dl.SolidFill),
+		PresetDash: dl.PresetDash,
 	}
 }
 
@@ -635,18 +644,18 @@ func newRunProperties(dr *DecodeRunProperties) *RunProperties {
 	}
 
 	rp := &RunProperties{
-		Bold:           dr.Bold,
-		Lang:           dr.Lang,
-		Size:           dr.Size,
-		Space:          dr.Space,
-		Strike:         dr.Strike,
-		Dirty:          dr.Dirty,
-		Err:            dr.Err,
-		Latin:          dr.Latin,
-		EastAsian:      dr.EastAsian,
-		ComplexScript:  dr.ComplexScript,
-		HlinkClick:     newHyperlink(dr.HlinkClick),
-		HlinkMouseOver: newHyperlink(dr.HlinkMouseOver),
+		Bold:               dr.Bold,
+		Lang:               dr.Lang,
+		Size:               dr.Size,
+		Space:              dr.Space,
+		Strike:             dr.Strike,
+		Dirty:              dr.Dirty,
+		Err:                dr.Err,
+		Latin:              dr.Latin,
+		EastAsian:          dr.EastAsian,
+		ComplexScript:      dr.ComplexScript,
+		HyperlinkClick:     newHyperlink(dr.HyperlinkClick),
+		HyperlinkMouseOver: newHyperlink(dr.HyperlinkMouseOver),
 	}
 
 	if dr.SolidFill != nil {
@@ -742,6 +751,16 @@ func newParagraphProperties(dpp *DecodeParagraphProperties) *ParagraphProperties
 			Char: dbc.Char,
 		}
 	}
+	newBulletAutoNum := func(dbn *DecodeBulletAutoNum) *BulletAutoNum {
+		if dbn == nil {
+			return nil
+		}
+
+		return &BulletAutoNum{
+			Type:    dbn.Type,
+			StartAt: dbn.StartAt,
+		}
+	}
 
 	return &ParagraphProperties{
 		Indent:           dpp.Indent,
@@ -754,6 +773,7 @@ func newParagraphProperties(dpp *DecodeParagraphProperties) *ParagraphProperties
 		SpacingAfter:     newSpacingChange(dpp.SpacingAfter),
 		BuFont:           newBulletFont(dpp.BuFont),
 		BuChar:           newBulletChar(dpp.BuChar),
+		BuAutoNum:        newBulletAutoNum(dpp.BuAutoNum),
 		BuNone:           dpp.BuNone,
 		DefRunProperties: newRunProperties(dpp.DefRunProperties),
 	}
@@ -811,7 +831,7 @@ func newShapeProperties(dsp *DecodeShapeProperties) *ShapeProperties {
 
 	return &ShapeProperties{
 		Xfrm:           newXfrm(dsp.Xfrm),
-		CustGeom:       dsp.CustGeom,
+		CustomGeometry: dsp.CustomGeometry,
 		PresetGeometry: newPresetGeometry(dsp.PresetGeometry),
 		NoFill:         dsp.NoFill,
 		SolidFill:      newSolidFill(dsp.SolidFill),
@@ -1011,10 +1031,10 @@ func (f *File) slideWriter() {
 				}
 			}
 
-			var clrMapOverride *ClrMapOverride
+			var clrMapOverride *ColorMapOverride
 			if ds.ColorMapOverride != nil {
-				clrMapOverride = &ClrMapOverride{
-					MasterClrMapping: ds.ColorMapOverride.MasterClrMapping,
+				clrMapOverride = &ColorMapOverride{
+					MasterColorMapping: ds.ColorMapOverride.MasterClrMapping,
 				}
 			}
 
@@ -1027,6 +1047,7 @@ func (f *File) slideWriter() {
 				XMLNSP15: NameSpacePowerPointR15.Value,
 				XMLNSMC:  SourceRelationshipCompatibility.Value,
 				CommonSlideData: SlideData{
+					Name:       ds.CommonSlideData.Name,
 					Background: newBG(ds.CommonSlideData.Background),
 					ShapeTree: ShapeTree{
 						NonVisualGroupShapeProperties: newNonVisualGroupShapeProperties(ds.CommonSlideData.ShapeTree.NonVisualGroupShapeProperties),
@@ -1071,10 +1092,10 @@ func (f *File) notesSlideWriter() {
 				}
 			}
 
-			var clrMapOverride *ClrMapOverride
+			var clrMapOverride *ColorMapOverride
 			if ns.ColorMapOverride != nil {
-				clrMapOverride = &ClrMapOverride{
-					MasterClrMapping: ns.ColorMapOverride.MasterClrMapping,
+				clrMapOverride = &ColorMapOverride{
+					MasterColorMapping: ns.ColorMapOverride.MasterClrMapping,
 				}
 			}
 

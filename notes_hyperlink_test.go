@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -379,6 +380,139 @@ func TestSetShapeHyperLinkNone(t *testing.T) {
 	slideRels := string(readZipPart(t, out, "ppt/slides/_rels/slide1.xml.rels"))
 	if strings.Contains(slideRels, SourceRelationshipHyperlink) {
 		t.Errorf("the slide rels still have the hyperlink relationship: %s", slideRels)
+	}
+}
+
+// TestSetShapeHyperLinkLocation checks that SetShapeHyperLink with the link
+// type LinkTypeLocation sets the internal hyperlink (the slide jump) to the
+// runs of the shape, adds the relationship to the target slide to the slide
+// rels part and that the hyperlink is preserved after the round trip.
+func TestSetShapeHyperLinkLocation(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+	slideID := defaultXMLSlideID
+	shapeID := defaultXMLShapeID
+	targetID, err := f.NewSlide()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.SetShapeHyperLink(slideID, 999, strconv.Itoa(targetID), LinkTypeLocation); !errors.As(err, new(ErrShapeNotExist)) {
+		t.Fatalf("expected ErrShapeNotExist, got %v", err)
+	}
+	if err := f.SetShapeHyperLink(slideID, shapeID, "abc", LinkTypeLocation); !errors.As(err, new(ErrLinkTargetInvalid)) {
+		t.Fatalf("expected ErrLinkTargetInvalid, got %v", err)
+	}
+	if err := f.SetShapeHyperLink(slideID, shapeID, "999", LinkTypeLocation); !errors.As(err, new(ErrSlideNotExist)) {
+		t.Fatalf("expected ErrSlideNotExist, got %v", err)
+	}
+
+	if err := f.SetShapeHyperLink(slideID, shapeID, strconv.Itoa(targetID), LinkTypeLocation); err != nil {
+		t.Fatal(err)
+	}
+	hasLink, got, err := f.GetShapeHyperLink(slideID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasLink || got != strconv.Itoa(targetID) {
+		t.Fatalf("GetShapeHyperLink = (%v, %q), want (true, %q)", hasLink, got, targetID)
+	}
+
+	ids, err := f.GetShapeHyperLinks(slideID, LinkTypeLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != shapeID {
+		t.Fatalf("GetShapeHyperLinks Location = %v, want [%d]", ids, shapeID)
+	}
+	ids, err = f.GetShapeHyperLinks(slideID, LinkTypeExternal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("GetShapeHyperLinks External = %v, want empty", ids)
+	}
+
+	out := filepath.Join(t.TempDir(), "hyperlink_location.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	slideXML := string(readZipPart(t, out, "ppt/slides/slide1.xml"))
+	if !strings.Contains(slideXML, `action="ppaction://hlinksldjump"`) {
+		t.Errorf("the hlinkClick element has no the slide jump action: %s", slideXML)
+	}
+	slideRels := string(readZipPart(t, out, "ppt/slides/_rels/slide1.xml.rels"))
+	// the type of the relationship to the slide ends with "/slide" (the
+	// relationship to the slide layout ends with "/slideLayout")
+	if !strings.Contains(slideRels, SourceRelationshipSlide+"\"") {
+		t.Errorf("the slide rels have no the relationship to the target slide: %s", slideRels)
+	}
+	if !strings.Contains(slideRels, `Target="slide2.xml"`) {
+		t.Errorf("the relationship to the target slide has no the target: %s", slideRels)
+	}
+	if strings.Contains(slideRels, "TargetMode") {
+		t.Errorf("the relationship to the target slide must have no TargetMode: %s", slideRels)
+	}
+
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	hasLink, got, err = f2.GetShapeHyperLink(slideID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasLink || got != strconv.Itoa(targetID) {
+		t.Fatalf("GetShapeHyperLink after the round trip = (%v, %q), want (true, %q)", hasLink, got, targetID)
+	}
+	ids, err = f2.GetShapeHyperLinks(slideID, LinkTypeLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != shapeID {
+		t.Fatalf("GetShapeHyperLinks Location after the round trip = %v, want [%d]", ids, shapeID)
+	}
+}
+
+// TestSetShapeHyperLinkLocationNone checks that SetShapeHyperLink with the
+// link type LinkTypeNone removes the internal hyperlink from the shape and
+// the relationship to the target slide from the slide rels part.
+func TestSetShapeHyperLinkLocationNone(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+	slideID := defaultXMLSlideID
+	shapeID := defaultXMLShapeID
+	targetID, err := f.NewSlide()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.SetShapeHyperLink(slideID, shapeID, strconv.Itoa(targetID), LinkTypeLocation); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetShapeHyperLink(slideID, shapeID, "", LinkTypeNone); err != nil {
+		t.Fatal(err)
+	}
+	hasLink, got, err := f.GetShapeHyperLink(slideID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasLink || got != "" {
+		t.Fatalf("GetShapeHyperLink = (%v, %q), want (false, \"\")", hasLink, got)
+	}
+
+	out := filepath.Join(t.TempDir(), "hyperlink_location_none.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	slideXML := string(readZipPart(t, out, "ppt/slides/slide1.xml"))
+	if strings.Contains(slideXML, "hlinkClick") {
+		t.Errorf("the slide still has the hlinkClick element: %s", slideXML)
+	}
+	slideRels := string(readZipPart(t, out, "ppt/slides/_rels/slide1.xml.rels"))
+	if strings.Contains(slideRels, SourceRelationshipSlide+"\"") {
+		t.Errorf("the slide rels still have the relationship to the target slide: %s", slideRels)
 	}
 }
 
