@@ -359,3 +359,101 @@ func TestLoadedTextBreakRoundTrip(t *testing.T) {
 		t.Fatal("the slide part with the line break and the field is not preserved byte for byte on the round trip")
 	}
 }
+
+// TestRunPropertiesItalic checks the italic attribute (a:rPr i="1") of the
+// run properties: the attribute is kept by the conversion of the run
+// properties, is exported to the slide part and to the notes slide part on
+// the save and is re-imported from the saved file.
+func TestRunPropertiesItalic(t *testing.T) {
+	one := 1
+
+	// the conversion of the run properties keeps the italic attribute
+	rp := newRunProperties(&DecodeRunProperties{Italic: &one, Bold: &one, Lang: "en-US"})
+	if rp == nil || rp.Italic == nil || *rp.Italic != 1 || rp.Bold == nil || *rp.Bold != 1 {
+		t.Fatalf("newRunProperties did not keep the italic and the bold attributes: %+v", rp)
+	}
+	// the run properties without the italic attribute keep the attribute unset
+	if rp2 := newRunProperties(&DecodeRunProperties{Bold: &one}); rp2.Italic != nil {
+		t.Fatalf("newRunProperties set the italic attribute of the unset run properties: %+v", rp2)
+	}
+
+	f, err := OpenFile(testFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	// the italic run is set to the shape of the slide
+	err = f.SetShapeTextBody(257, 8, DecodeTextBody{
+		BodyProperties: &DecodeBodyProperties{},
+		ListStyle:      &struct{}{},
+		Paragraph: []DecodeParagraph{
+			{Runs: []DecodeRuns{{Text: "italic", RunProperties: &DecodeRunProperties{Italic: &one}}}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the italic run is set to the notes of the slide
+	if err := f.SetNotes(257, DecodeTextBody{
+		BodyProperties: &DecodeBodyProperties{},
+		ListStyle:      &struct{}{},
+		Paragraph: []DecodeParagraph{
+			{Runs: []DecodeRuns{{Text: "italic notes", RunProperties: &DecodeRunProperties{Italic: &one}}}},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	out := filepath.Join(t.TempDir(), "italic.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+
+	// the italic attribute is exported to the slide part
+	slideXML := string(readZipPart(t, out, "ppt/slides/slide2.xml"))
+	if !strings.Contains(slideXML, `i="1"`) {
+		t.Errorf("the italic attribute is not exported to the slide part: %s", slideXML)
+	}
+
+	// the italic attribute is exported to the notes slide part (the notes
+	// are re-serialized through the encode types on the save)
+	notesPath, ok := f.getNotesSlidePath(257)
+	if !ok {
+		t.Fatal("the notes slide path of the slide was not found")
+	}
+	notesXML := string(readZipPart(t, out, notesPath))
+	if !strings.Contains(notesXML, `i="1"`) {
+		t.Errorf("the italic attribute is not exported to the notes slide part: %s", notesXML)
+	}
+
+	// the italic attribute is re-imported from the saved file
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+
+	shapes, err := f2.GetShapes(257)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range shapes {
+		if shapes[i].NonVisualShapeProperties.CommonNonVisualProperties.ID == 8 {
+			rp2 := shapes[i].TextBody.Paragraph[0].Runs[0].RunProperties
+			if rp2 == nil || rp2.Italic == nil || *rp2.Italic != 1 {
+				t.Fatalf("the italic attribute is not re-imported from the saved slide: %+v", rp2)
+			}
+		}
+	}
+
+	notes, err := f2.GetNotes(257)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rp3 := notes.Paragraph[0].Runs[0].RunProperties
+	if rp3 == nil || rp3.Italic == nil || *rp3.Italic != 1 {
+		t.Fatalf("the italic attribute is not re-imported from the saved notes: %+v", rp3)
+	}
+}
