@@ -1361,6 +1361,9 @@ func TestNewSlideMaster(t *testing.T) {
 	if err := f.SetMasterShapeHyperLink(slideMasterTestID, 0, linkURL, LinkTypeExternal); err != nil {
 		t.Fatal(err)
 	}
+	// the raw bytes of the theme part of the source master in the package
+	// (the new theme part must be the byte copy of this part)
+	sourceTheme := f.readBytes(defaultXMLPathTheme)
 
 	newMasterID, err := f.NewSlideMaster(slideMasterTestID)
 	if err != nil {
@@ -1401,22 +1404,33 @@ func TestNewSlideMaster(t *testing.T) {
 	if !strings.Contains(newMasterRels, `relationships/slideLayout" Target="../slideLayouts/slideLayout2.xml"`) {
 		t.Fatalf("the rels part of the new master is not created:\n%s", newMasterRels)
 	}
-	if !strings.Contains(newMasterRels, `relationships/theme"`) {
-		t.Fatalf("the theme relationship is not kept in the rels part of the new master:\n%s", newMasterRels)
+	// the theme relationship of the new master is rewritten to the new theme
+	// part (the theme part is private to the slide master in PowerPoint:
+	// two slide masters must not share one theme part)
+	if !strings.Contains(newMasterRels, `relationships/theme" Target="../theme/theme2.xml"`) {
+		t.Fatalf("the theme relationship of the new master is not rewritten to the new theme part:\n%s", newMasterRels)
+	}
+	// the part of the new theme: the byte copy of the part of the theme of
+	// the source master (the theme part of the source master in the zip is
+	// the reserialized part of the presentation theme, so the comparison is
+	// with the part in the package)
+	if !bytes.Equal(readZipPart(t, out, "ppt/theme/theme2.xml"), sourceTheme) {
+		t.Fatalf("the part of the new theme is not the copy of the part of the theme of the source master")
 	}
 	// the hyperlink relationship of the source master is copied with the
 	// new master
 	if !strings.Contains(newMasterRels, `relationships/hyperlink" Target="`+linkURL+`" TargetMode="External"`) {
 		t.Fatalf("the hyperlink relationship is not copied to the rels part of the new master:\n%s", newMasterRels)
 	}
-	// the content types of the new master, its rels part, the new layout and
-	// its rels part
+	// the content types of the new master, its rels part, the new layout,
+	// its rels part and the new theme part
 	contentTypes := string(readZipPart(t, out, "[Content_Types].xml"))
 	if !strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml" PartName="/ppt/slideMasters/slideMaster2.xml"`) ||
 		!strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-package.relationships+xml" PartName="/ppt/slideMasters/_rels/slideMaster2.xml.rels"`) ||
 		!strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml" PartName="/ppt/slideLayouts/slideLayout2.xml"`) ||
-		!strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-package.relationships+xml" PartName="/ppt/slideLayouts/_rels/slideLayout2.xml.rels"`) {
-		t.Fatalf("the content types of the new master and the new layout are not added:\n%s", contentTypes)
+		!strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-package.relationships+xml" PartName="/ppt/slideLayouts/_rels/slideLayout2.xml.rels"`) ||
+		!strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-officedocument.theme+xml" PartName="/ppt/theme/theme2.xml"`) {
+		t.Fatalf("the content types of the new master, the new layout and the new theme are not added:\n%s", contentTypes)
 	}
 	// the entry of the new master in the slide master id list of the
 	// presentation (the relationship of the new master in the rels of the
@@ -1451,6 +1465,30 @@ func TestNewSlideMaster(t *testing.T) {
 		t.Fatalf("GetSlideLayoutList after the second NewSlideMaster = %v, want 3 entries", list)
 	}
 
+	// the theme of the second new master (the source master is the first
+	// new master): the next free theme part, the byte copy of the theme of
+	// the source master (the bytes of the theme3 part equal the bytes of
+	// the theme2 part and of the theme of the source master)
+	out3 := filepath.Join(t.TempDir(), "new_master_theme.pptx")
+	if err := f.SaveAs(out3); err != nil {
+		t.Fatal(err)
+	}
+	if !hasZipPart(t, out3, "ppt/theme/theme3.xml") {
+		t.Fatalf("the theme3 part is missing in the saved file")
+	}
+	if !bytes.Equal(readZipPart(t, out3, "ppt/theme/theme3.xml"), sourceTheme) {
+		t.Fatalf("the part of the third theme is not the copy of the part of the theme of the source master")
+	}
+	thirdMasterRels := string(readZipPart(t, out3, "ppt/slideMasters/_rels/slideMaster3.xml.rels"))
+	if !strings.Contains(thirdMasterRels, `relationships/theme" Target="../theme/theme3.xml"`) {
+		t.Fatalf("the theme relationship of the second new master is not rewritten to the new theme part:\n%s", thirdMasterRels)
+	}
+	// the theme part of the first new master is not touched by the second
+	// NewSlideMaster
+	if !bytes.Equal(readZipPart(t, out3, "ppt/theme/theme2.xml"), sourceTheme) {
+		t.Fatalf("the part of the new theme is not kept by the second NewSlideMaster")
+	}
+
 	// the file is stable on the round trip: the lists of the masters and
 	// the layouts are kept, the parts of the new master and the new layout
 	// are kept
@@ -1477,5 +1515,55 @@ func TestNewSlideMaster(t *testing.T) {
 	// the non existing source master
 	if _, err := f.NewSlideMaster(1); !errors.As(err, new(ErrSlideMasterNotExist)) {
 		t.Fatalf("expected ErrSlideMasterNotExist, got %v", err)
+	}
+}
+
+// TestNewSlideMasterNotesTheme checks that the notes master created after
+// the NewSlideMaster takes the next free theme part (theme3) and does not
+// clobber the theme part of the new slide master (theme2).
+func TestNewSlideMasterNotesTheme(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+
+	if _, err := f.NewSlideMaster(slideMasterTestID); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.NewNotes(f.GetSlideList()[0]); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "new_master_notes.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	// the new slide master keeps its own theme part
+	masterRels := string(readZipPart(t, out, "ppt/slideMasters/_rels/slideMaster2.xml.rels"))
+	if !strings.Contains(masterRels, `relationships/theme" Target="../theme/theme2.xml"`) {
+		t.Fatalf("the theme relationship of the new master is not kept:\n%s", masterRels)
+	}
+	// the notes master takes the next free theme part (theme3)
+	notesRels := string(readZipPart(t, out, "ppt/notesMasters/_rels/notesMaster1.xml.rels"))
+	if !strings.Contains(notesRels, `relationships/theme" Target="../theme/theme3.xml"`) {
+		t.Fatalf("the notes master is not related to the next free theme part:\n%s", notesRels)
+	}
+	if !hasZipPart(t, out, "ppt/theme/theme3.xml") {
+		t.Fatalf("the theme3 part is missing in the saved file")
+	}
+	contentTypes := string(readZipPart(t, out, "[Content_Types].xml"))
+	if !strings.Contains(contentTypes, `PartName="/ppt/theme/theme3.xml"`) {
+		t.Fatalf("the content type of the theme3 part is not added:\n%s", contentTypes)
+	}
+	// the round trip keeps the theme parts
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	out2 := filepath.Join(t.TempDir(), "new_master_notes_roundtrip.pptx")
+	if err := f2.SaveAs(out2); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(readZipPart(t, out2, "ppt/theme/theme2.xml"), readZipPart(t, out, "ppt/theme/theme2.xml")) ||
+		!bytes.Equal(readZipPart(t, out2, "ppt/theme/theme3.xml"), readZipPart(t, out, "ppt/theme/theme3.xml")) {
+		t.Fatalf("the theme parts are not kept on the round trip")
 	}
 }

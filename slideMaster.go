@@ -666,6 +666,27 @@ func (f *File) nextSlideMasterPartIndex() int {
 	return next
 }
 
+// themePartIndexRe matches the index of the part of the theme (the N of the
+// themeN.xml part name).
+var themePartIndexRe = regexp.MustCompile(`^ppt/theme/theme(\d+)\.xml$`)
+
+// nextThemePartIndex provides a function to get the next free index of the
+// part of the theme (the N of the themeN.xml part name).
+func (f *File) nextThemePartIndex() int {
+	next := 1
+	f.Pkg.Range(func(k, _ interface{}) bool {
+		name, _ := k.(string)
+		if m := themePartIndexRe.FindStringSubmatch(name); m != nil {
+			if index, _ := strconv.Atoi(m[1]); index >= next {
+				next = index + 1
+			}
+		}
+		return true
+	})
+
+	return next
+}
+
 // NewSlideMaster provides a function to create a new slide master (a copy of
 // the slide master with the given master id) in the presentation, and returns
 // the id of the new master (the same way PowerPoint "duplicates" the slide
@@ -673,10 +694,14 @@ func (f *File) nextSlideMasterPartIndex() int {
 // the shapes, the background, the color map, the text styles and the header
 // footer of the source master. The slide layouts of the source master are
 // copied with the new master (each layout of the new master is the copy of
-// the layout of the source master and points to the new master). The parts
-// of the new master and its layouts, their rels parts, the content types,
-// the slide layout id list of the new master and the slide master id list of
-// the presentation are updated automatically.
+// the layout of the source master and points to the new master). The theme
+// of the source master is copied with the new master: the new master points
+// to its own theme part (the theme part is private to the slide master in
+// PowerPoint: two slide masters sharing one theme part make the repair
+// prompt of PowerPoint appear). The parts of the new master and its layouts,
+// the new theme part, their rels parts, the content types, the slide layout
+// id list of the new master and the slide master id list of the presentation
+// are updated automatically.
 //
 //	masterID, err := f.NewSlideMaster(f.GetSlideMasterList()[0])
 func (f *File) NewSlideMaster(masterID int) (int, error) {
@@ -806,10 +831,35 @@ func (f *File) NewSlideMaster(masterID int) (int, error) {
 	}
 	f.Pkg.Store(newMasterPath, newMasterRaw)
 
+	// the theme of the source master: the new master gets its own copy of
+	// the theme part (the theme part is private to the slide master in
+	// PowerPoint: two slide masters sharing one theme part make the repair
+	// prompt of PowerPoint appear)
+	themeTarget := ""
+	if sourceMasterRels != nil {
+		sourceMasterRels.mu.Lock()
+		for _, rel := range sourceMasterRels.Relationships {
+			if rel.Type == SourceRelationshipTheme {
+				themeTarget = rel.Target
+				break
+			}
+		}
+		sourceMasterRels.mu.Unlock()
+	}
+	newThemeBase := ""
+	if themeTarget != "" {
+		sourceThemePath := resolvePartPath(source.master, themeTarget)
+		newThemePath := "ppt/theme/theme" + strconv.Itoa(f.nextThemePartIndex()) + ".xml"
+		newThemeBase = filepath.Base(newThemePath)
+		f.Pkg.Store(newThemePath, f.readBytes(sourceThemePath))
+		_ = f.setContentTypes("/"+newThemePath, ContentTypeThemeML)
+	}
+
 	// the rels part of the new master: the copy of the rels part of the
 	// source master (the targets of the relationships of the slide layouts
-	// are rewritten to the parts of the new layouts, the other relationships
-	// — the theme, the hyperlinks — are kept)
+	// are rewritten to the parts of the new layouts, the target of the
+	// relationship of the theme is rewritten to the part of the new theme,
+	// the other relationships — the hyperlinks — are kept)
 	newMasterRels := &relationships{}
 	if sourceMasterRels != nil {
 		sourceMasterRels.mu.Lock()
@@ -818,6 +868,9 @@ func (f *File) NewSlideMaster(masterID int) (int, error) {
 				if rel.Target == copy.oldTarget {
 					rel.Target = copy.newTarget
 				}
+			}
+			if newThemeBase != "" && rel.Type == SourceRelationshipTheme {
+				rel.Target = "../theme/" + newThemeBase
 			}
 			newMasterRels.Relationships = append(newMasterRels.Relationships, rel)
 		}
