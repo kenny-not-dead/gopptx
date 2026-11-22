@@ -256,7 +256,7 @@ func TestGetImage(t *testing.T) {
 	assert.Len(t, pics, 1)
 	data, err = f.GetImage(257, pics[0].BlipFill.Blip.Embed)
 	assert.NoError(t, err)
-	if !assert.NotEmpty(t, data) || !assert.NoError(t, os.WriteFile(filepath.Join("test", "image1.jpg"), data, 0o644)) {
+	if !assert.NotEmpty(t, data) || !assert.NoError(t, os.WriteFile(filepath.Join(t.TempDir(), "image1.jpg"), data, 0o644)) {
 		t.FailNow()
 	}
 
@@ -427,4 +427,125 @@ func prepareTestPresentation() (*File, error) {
 	}
 
 	return f, nil
+}
+
+// TestSetImage checks the replace of the image data by the slide id and the
+// relationship id: the empty data returns the error, the slide that is not
+// in the presentation returns the error, the relationship that is not the
+// image relationship returns the error, the replaced image data is kept on
+// the round trip.
+func TestSetImage(t *testing.T) {
+	f, err := OpenFile(testFixture)
+	assert.NoError(t, err)
+	defer f.Close()
+
+	newData, err := os.ReadFile(filepath.Join("test", "images", "2.png"))
+	assert.NoError(t, err)
+
+	// the empty image data
+	err = f.SetImage(256, "rId2", nil)
+	assert.EqualError(t, err, ErrImageEmpty.Error())
+	// the slide that is not in the presentation
+	err = f.SetImage(999, "rId2", newData)
+	assert.EqualError(t, err, ErrSlideNotExist{SlideID: 999}.Error())
+	// the relationship that is not in the rels part of the slide
+	err = f.SetImage(256, "rId999", newData)
+	assert.EqualError(t, err, ErrImageNotExist{RelationshipID: "rId999"}.Error())
+	// the relationship that is not the image relationship (the slide layout
+	// relationship)
+	err = f.SetImage(256, "rId1", newData)
+	assert.EqualError(t, err, ErrImageNotExist{RelationshipID: "rId1"}.Error())
+
+	// the image data is replaced (the picture of the slide 256, the
+	// relationship rId2)
+	oldData, err := f.GetImage(256, "rId2")
+	assert.NoError(t, err)
+	assert.NotEqual(t, newData, oldData)
+	err = f.SetImage(256, "rId2", newData)
+	assert.NoError(t, err)
+	data, err := f.GetImage(256, "rId2")
+	assert.NoError(t, err)
+	assert.Equal(t, newData, data)
+
+	// the replaced image data is kept on the round trip
+	out := filepath.Join(t.TempDir(), "set_image.pptx")
+	assert.NoError(t, f.SaveAs(out))
+	reopened, err := OpenFile(out)
+	assert.NoError(t, err)
+	defer reopened.Close()
+	data, err = reopened.GetImage(256, "rId2")
+	assert.NoError(t, err)
+	assert.Equal(t, newData, data)
+}
+
+// TestSVGSize checks the get of the size of the SVG image by the width and
+// the height attributes of the root svg element (the pixel values, the in,
+// cm, mm, pt and pc units are converted to the pixels at 96 dpi) and by the
+// viewBox attribute.
+func TestSVGSize(t *testing.T) {
+	tests := []struct {
+		data          string
+		width, height int
+		ok            bool
+	}{
+		{`<svg width="100" height="50"/>`, 100, 50, true},
+		{`<svg width="100px" height="50px"/>`, 100, 50, true},
+		{`<svg width='1in' height='2in'/>`, 96, 192, true},
+		{`<svg width="5cm" height="2.54cm"/>`, 189, 96, true},
+		{`<svg width="10mm" height="25.4mm"/>`, 38, 96, true},
+		{`<svg width="72pt" height="144pt"/>`, 96, 192, true},
+		{`<svg width="1pc" height="2pc"/>`, 16, 32, true},
+		{`<svg viewBox="0 0 100 200"/>`, 100, 200, true},
+		{`<svg width="10" viewBox="0 0 100 200"/>`, 100, 200, true},
+		{`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="20"/>`, 10, 20, true},
+		{`<svg/>`, 0, 0, false},
+		{`<svg width="10"/>`, 0, 0, false},
+		{`<svg viewBox="0 0 100"/>`, 0, 0, false},
+		{`<svg viewBox="0 0 -100 200"/>`, 0, 0, false},
+		{`<html/>`, 0, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.data, func(t *testing.T) {
+			width, height, ok := svgSize([]byte(tt.data))
+			assert.Equal(t, tt.ok, ok)
+			if ok {
+				assert.Equal(t, tt.width, width)
+				assert.Equal(t, tt.height, height)
+			}
+		})
+	}
+}
+
+// TestSVGAttrPixels checks the get of the pixel value of the attribute of
+// the root svg tag: the value without the unit and with the px, in, cm, mm,
+// pt and pc units, the value with the unsupported unit, the absent attribute
+// and the invalid value.
+func TestSVGAttrPixels(t *testing.T) {
+	tag := []byte(`<svg width="10px" height="1in">`)
+	if v, ok := svgAttrPixels(tag, "width"); !ok || v != 10 {
+		t.Fatalf("expected the width 10 pixels, got %d %v", v, ok)
+	}
+	if v, ok := svgAttrPixels(tag, "height"); !ok || v != 96 {
+		t.Fatalf("expected the height 96 pixels, got %d %v", v, ok)
+	}
+	// the absent attribute
+	if _, ok := svgAttrPixels(tag, "viewBox"); ok {
+		t.Fatal("the absent attribute is found")
+	}
+	// the unsupported unit
+	if _, ok := svgAttrPixels([]byte(`<svg width="10em">`), "width"); ok {
+		t.Fatal("the value with the unsupported unit is parsed")
+	}
+	// the invalid value
+	if _, ok := svgAttrPixels([]byte(`<svg width="0">`), "width"); ok {
+		t.Fatal("the zero value is parsed")
+	}
+	if _, ok := svgAttrPixels([]byte(`<svg width="abc">`), "width"); ok {
+		t.Fatal("the value without the number is parsed")
+	}
+	// the attribute with the same prefix (the data-width attribute is not
+	// the width attribute)
+	if _, ok := svgAttrPixels([]byte(`<svg data-width="10">`), "width"); ok {
+		t.Fatal("the attribute with the prefix is parsed")
+	}
 }

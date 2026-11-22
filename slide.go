@@ -489,6 +489,9 @@ const (
 	// ShapeOrderGraphicFrame is the kind of the p:graphicFrame child of the
 	// shape tree (the table, the chart).
 	ShapeOrderGraphicFrame = "graphicFrame"
+	// ShapeOrderGrpSp is the kind of the p:grpSp child of the shape tree
+	// (the group shape).
+	ShapeOrderGrpSp = "grpSp"
 )
 
 // GetShapeOrder provides a function to get the order (the z-order) of the
@@ -500,13 +503,7 @@ func (f *File) GetShapeOrder(slideID int) ([]ShapeOrder, error) {
 		return shapeOrder, err
 	}
 
-	for i := range slide.CommonSlideData.ShapeTree.Children {
-		if entry, ok := shapeOrderOf(&slide.CommonSlideData.ShapeTree.Children[i]); ok {
-			shapeOrder = append(shapeOrder, entry)
-		}
-	}
-
-	return shapeOrder, nil
+	return slide.CommonSlideData.shapeTreeOrder(), nil
 }
 
 // SetShapeOrder provides a function to set the order (the z-order) of the
@@ -519,38 +516,7 @@ func (f *File) SetShapeOrder(slideID int, shapeOrder []ShapeOrder) error {
 		return err
 	}
 
-	children := slide.CommonSlideData.ShapeTree.Children
-
-	// the given order must contain every child of the shape tree exactly
-	// once
-	index := make(map[ShapeOrder]int, len(children))
-	for i := range children {
-		entry, ok := shapeOrderOf(&children[i])
-		if !ok {
-			// the child has no id (the cNvPr element is absent in the
-			// slide XML): it can not be identified in the given order
-			return ErrShapeOrderInvalid
-		}
-		index[entry] = i
-	}
-	if len(shapeOrder) != len(index) {
-		return ErrShapeOrderInvalid
-	}
-	seen := make(map[ShapeOrder]bool, len(shapeOrder))
-	for _, entry := range shapeOrder {
-		if _, ok := index[entry]; !ok || seen[entry] {
-			return ErrShapeOrderInvalid
-		}
-		seen[entry] = true
-	}
-
-	reordered := make([]decodeShapeTreeChild, 0, len(shapeOrder))
-	for _, entry := range shapeOrder {
-		reordered = append(reordered, children[index[entry]])
-	}
-	slide.CommonSlideData.ShapeTree.Children = reordered
-
-	return nil
+	return slide.CommonSlideData.reorderShapeTree(shapeOrder)
 }
 
 // MoveShape moves the shape to a specified position in the shape tree of
@@ -562,34 +528,12 @@ func (f *File) MoveShape(slideID int, sourceID, targetID int) error {
 	if err != nil {
 		return err
 	}
-
-	sourceIdx, targetIdx := -1, -1
-	for i, entry := range shapeOrder {
-		if entry.ID == sourceID {
-			sourceIdx = i
-		}
-		if entry.ID == targetID {
-			targetIdx = i
-		}
-	}
-	if sourceIdx == -1 {
-		return ErrShapeNotExist{sourceID}
-	}
-	if targetIdx == -1 {
-		return ErrShapeNotExist{targetID}
-	}
-	if sourceIdx == targetIdx {
-		return nil
+	moved, err := moveShapeOrderEntry(shapeOrder, sourceID, targetID)
+	if err != nil {
+		return err
 	}
 
-	moved := shapeOrder[sourceIdx]
-	shapeOrder = append(shapeOrder[:sourceIdx], shapeOrder[sourceIdx+1:]...)
-	if targetIdx > sourceIdx {
-		targetIdx--
-	}
-	shapeOrder = append(shapeOrder[:targetIdx], append([]ShapeOrder{moved}, shapeOrder[targetIdx:]...)...)
-
-	return f.SetShapeOrder(slideID, shapeOrder)
+	return f.SetShapeOrder(slideID, moved)
 }
 
 // shapeOrderOf returns the order entry (the kind and the id) of the child
@@ -637,9 +581,40 @@ func shapeOrderOf(child *decodeShapeTreeChild) (ShapeOrder, bool) {
 			Kind: ShapeOrderGraphicFrame,
 			ID:   child.GraphicFrame.NonVisualGraphicFrameProperties.CommonNonVisualProperties.ID,
 		}, true
+	case child.GroupShape != nil:
+		if child.GroupShape.NonVisualGroupShapeProperties == nil ||
+			child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties == nil {
+			return ShapeOrder{}, false
+		}
+
+		return ShapeOrder{
+			Kind: ShapeOrderGrpSp,
+			ID:   child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties.ID,
+		}, true
 	}
 
 	return ShapeOrder{}, false
+}
+
+// GetGroups provides a function to get the group shapes (p:grpSp) by given
+// slide id, in the document order of the shape tree of the slide. The groups
+// (including the nested groups) are returned by value: edits of the returned
+// slice do not affect the slide.
+func (f *File) GetGroups(slideID int) ([]GroupShape, error) {
+	slide, err := f.slideReader(slideID)
+	if err != nil {
+		return nil, err
+	}
+
+	var groups []GroupShape
+	for i := range slide.CommonSlideData.ShapeTree.Children {
+		if child := slide.CommonSlideData.ShapeTree.Children[i].GroupShape; child != nil {
+			group := newGroupShape(child)
+			groups = append(groups, *group)
+		}
+	}
+
+	return groups, nil
 }
 
 // CreateShape provides the function to create  a new shape by given slide id and
@@ -774,12 +749,14 @@ func (f *File) DeleteSlide(slideID int) error {
 		}
 
 		target := f.deleteSlideFromPresentationRels(v.RelationshipID)
-		dir := filepath.Dir(target)
+		dir := filepath.ToSlash(filepath.Dir(target))
 		base := filepath.Base(target)
 
-		// Update [Content_Types].xml
+		// Update [Content_Types].xml (the part name always uses forward
+		// slashes, on all platforms)
 		_ = f.removeContentTypesPart(ContentTypeSlideML, target)
-		_ = f.removeContentTypesPart(ContentTypeRelationships, filepath.Join(dir, "_rels", base+".rels"))
+		_ = f.removeContentTypesPart(ContentTypeRelationships,
+			filepath.ToSlash(filepath.Join(dir, "_rels", base+".rels")))
 
 		// delete the notes slide of the slide (the part, the rels part and
 		// the content types; the notesSlide relationship of the slide is

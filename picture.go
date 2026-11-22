@@ -725,11 +725,16 @@ func svgSize(data []byte) (width, height int, ok bool) {
 	// the viewBox attribute: "min-x min-y width height"
 	if i := bytes.Index(tag, []byte("viewBox=")); i != -1 {
 		rest := tag[i+len("viewBox="):]
-		j := bytes.IndexAny(rest, "\"'")
-		if j == -1 {
+		// the value of the attribute is quoted: skip the opening quote and
+		// find the closing quote
+		if len(rest) == 0 {
 			return 0, 0, false
 		}
-		fields := strings.Fields(string(rest[:j]))
+		j := bytes.IndexByte(rest[1:], rest[0])
+		if j <= 0 {
+			return 0, 0, false
+		}
+		fields := strings.Fields(string(rest[1 : j+1]))
 		if len(fields) == 4 {
 			w, err1 := strconv.ParseFloat(fields[2], 64)
 			h, err2 := strconv.ParseFloat(fields[3], 64)
@@ -748,7 +753,7 @@ func svgAttrPixels(tag []byte, name string) (int, bool) {
 	for _, quote := range []string{`"`, "'"} {
 		marker := []byte(name + "=" + quote)
 		i := bytes.Index(tag, marker)
-		if i == 0 || (tag[i-1] != ' ' && tag[i-1] != '\t') {
+		if i < 0 || i == 0 || (tag[i-1] != ' ' && tag[i-1] != '\t') {
 			continue
 		}
 		rest := tag[i+len(marker):]
@@ -780,7 +785,7 @@ func svgAttrPixels(tag []byte, name string) (int, bool) {
 		case "mm":
 			f *= 96 / 25.4
 		case "pt":
-			f *= 96 / 72
+			f *= 96 / 72.0
 		case "pc":
 			f *= 96 / 6
 		default:

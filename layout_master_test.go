@@ -656,6 +656,166 @@ func TestMasterUnsupportedShapeTree(t *testing.T) {
 	}
 }
 
+// TestMasterColorMap checks that GetSlideMasterColorMap reads the color map
+// (p:clrMap) of the slide master and SetSlideMasterColorMap sets the color
+// map of the slide master (the color map is kept on the round trip).
+func TestMasterColorMap(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+
+	// the template master has the identity color map (the attributes of the
+	// color map are the names of the theme scheme colors)
+	cm, err := f.GetSlideMasterColorMap(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cm == nil || cm.BG1 != "lt1" || cm.BG2 != "lt2" || cm.TX1 != "dk1" || cm.TX2 != "dk2" ||
+		cm.HLink != "hlink" || cm.FolHLink != "folHlink" || cm.Accent1 != "accent1" {
+		t.Fatalf("GetSlideMasterColorMap = %+v", cm)
+	}
+
+	// the hyperlink color of the master is mapped to the accent1 scheme
+	// color
+	cm.HLink = "accent1"
+	if err := f.SetSlideMasterColorMap(slideMasterTestID, *cm); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.GetSlideMasterColorMap(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.HLink != "accent1" {
+		t.Fatalf("GetSlideMasterColorMap after the set = %+v", got)
+	}
+
+	out := filepath.Join(t.TempDir(), "master_clrmap.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	master := string(readZipPart(t, out, slideMasterTestPath))
+	if !strings.Contains(master, `<p:clrMap bg1="lt1" bg2="lt2" tx1="dk1" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="accent1" folHlink="folHlink"/>`) {
+		t.Fatalf("the color map of the master is not set:\n%s", master)
+	}
+
+	// the color map is kept on the round trip of the saved file
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	got, err = f2.GetSlideMasterColorMap(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.HLink != "accent1" || got.FolHLink != "folHlink" {
+		t.Fatalf("GetSlideMasterColorMap after the round trip = %+v", got)
+	}
+
+	// the non existing master
+	if _, err := f.GetSlideMasterColorMap(1); !errors.As(err, new(ErrSlideMasterNotExist)) {
+		t.Fatalf("expected ErrSlideMasterNotExist, got %v", err)
+	}
+}
+
+// TestMasterTextStyles checks that GetSlideMasterTextStyles reads the text
+// styles (p:txStyles) of the slide master, SetSlideMasterTextStyles sets the
+// text styles of the slide master (the text styles are inherited by the
+// slides) and DeleteSlideMasterTextStyles deletes them.
+func TestMasterTextStyles(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+
+	// the template master has no text styles element
+	ts, err := f.GetSlideMasterTextStyles(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ts != nil {
+		t.Fatalf("GetSlideMasterTextStyles = %+v, want nil", ts)
+	}
+
+	// the title style: the default run properties of the level 1 (the size
+	// and the font), the body style: the bullet character of the level 1
+	size := 3200
+	textStyles := DecodeTextStyles{
+		TitleStyle: &DecodeTextStyle{
+			Lvl1: &DecodeParagraphProperties{
+				DefRunProperties: &DecodeRunProperties{
+					Size:  &size,
+					Latin: &Font{Typeface: "Arial"},
+				},
+			},
+		},
+		BodyStyle: &DecodeTextStyle{
+			Lvl1: &DecodeParagraphProperties{
+				BuChar: &DecodeBulletChar{Char: "•"},
+			},
+		},
+	}
+	if err := f.SetSlideMasterTextStyles(slideMasterTestID, textStyles); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.GetSlideMasterTextStyles(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.TitleStyle == nil || got.TitleStyle.Lvl1 == nil ||
+		got.TitleStyle.Lvl1.DefRunProperties == nil ||
+		got.TitleStyle.Lvl1.DefRunProperties.Size == nil || *got.TitleStyle.Lvl1.DefRunProperties.Size != size ||
+		got.BodyStyle == nil || got.BodyStyle.Lvl1 == nil || got.BodyStyle.Lvl1.BuChar == nil ||
+		got.BodyStyle.Lvl1.BuChar.Char != "•" {
+		t.Fatalf("GetSlideMasterTextStyles after the set = %+v", got)
+	}
+
+	out := filepath.Join(t.TempDir(), "master_txstyles.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	master := string(readZipPart(t, out, slideMasterTestPath))
+	if !strings.Contains(master, "<p:txStyles><p:titleStyle><a:lvl1pPr>") ||
+		!strings.Contains(master, `<a:defRPr sz="3200">`) ||
+		!strings.Contains(master, `<a:latin typeface="Arial"/>`) ||
+		!strings.Contains(master, "<p:bodyStyle><a:lvl1pPr><a:buChar char=\"•\"/></a:lvl1pPr></p:bodyStyle>") {
+		t.Fatalf("the text styles of the master are not set:\n%s", master)
+	}
+
+	// the text styles are kept on the round trip of the saved file
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	got, err = f2.GetSlideMasterTextStyles(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.TitleStyle == nil || got.TitleStyle.Lvl1 == nil ||
+		got.TitleStyle.Lvl1.DefRunProperties == nil ||
+		got.TitleStyle.Lvl1.DefRunProperties.Size == nil || *got.TitleStyle.Lvl1.DefRunProperties.Size != size {
+		t.Fatalf("GetSlideMasterTextStyles after the round trip = %+v", got)
+	}
+
+	// the text styles are deleted
+	if err := f.DeleteSlideMasterTextStyles(slideMasterTestID); err != nil {
+		t.Fatal(err)
+	}
+	got, err = f.GetSlideMasterTextStyles(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != nil {
+		t.Fatalf("the text styles of the master are not deleted: %+v", got)
+	}
+	out = filepath.Join(t.TempDir(), "master_txstyles_none.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	master = string(readZipPart(t, out, slideMasterTestPath))
+	if strings.Contains(master, "<p:txStyles>") {
+		t.Fatalf("the text styles element is not deleted from the master:\n%s", master)
+	}
+}
+
 // TestMasterHeaderFooterPreserved checks that the attributes of the header
 // footer (p:hf) element of the slide master are preserved on the master
 // round trip (the element is modeled by the attributes, the same way the
@@ -706,5 +866,616 @@ func TestMasterTransitionGuard(t *testing.T) {
 	}
 	if err := f.SetSlideMasterBackground(slideMasterTestID, DecodeBackground{}); !errors.As(err, new(ErrSlideMasterUnsupported)) {
 		t.Fatalf("expected ErrSlideMasterUnsupported, got %v", err)
+	}
+}
+
+// TestMasterShapeOrder checks that GetMasterShapeOrder reads the z-order of
+// the shapes of the slide master, MoveMasterShape moves the shape before the
+// target shape and SetMasterShapeOrder sets the order of the shapes.
+func TestMasterShapeOrder(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+
+	// the ids of the shapes of the template master are 0–4 (in the document
+	// order)
+	shapeOrder, err := f.GetMasterShapeOrder(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantIDs := []int{0, 1, 2, 3, 4}
+	if len(shapeOrder) != len(wantIDs) {
+		t.Fatalf("GetMasterShapeOrder = %v, want %d entries", shapeOrder, len(wantIDs))
+	}
+	for i, entry := range shapeOrder {
+		if entry.Kind != ShapeOrderSp || entry.ID != wantIDs[i] {
+			t.Fatalf("GetMasterShapeOrder[%d] = %+v, want sp %d", i, entry, wantIDs[i])
+		}
+	}
+
+	// the new shape is appended to the end of the shape tree (the id 5)
+	shapeID, err := f.CreateMasterShape(slideMasterTestID, DecodeShapeProperties{
+		Xfrm: &DecodeXfrm{
+			Offset:  &Offset{X: 0, Y: 0},
+			Extents: &Extents{CX: 914400, CY: 457200},
+		},
+	}, DecodeTextBody{Paragraph: []DecodeParagraph{{Runs: []DecodeRuns{{Text: "The moved master shape"}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shapeID != 5 {
+		t.Fatalf("CreateMasterShape id = %d, want 5", shapeID)
+	}
+
+	// the new shape is moved before the first shape of the master
+	if err := f.MoveMasterShape(slideMasterTestID, shapeID, wantIDs[0]); err != nil {
+		t.Fatal(err)
+	}
+	shapeOrder, err = f.GetMasterShapeOrder(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantIDs = []int{5, 0, 1, 2, 3, 4}
+	if len(shapeOrder) != len(wantIDs) {
+		t.Fatalf("GetMasterShapeOrder after the move = %v, want %v", shapeOrder, wantIDs)
+	}
+	for i, entry := range shapeOrder {
+		if entry.Kind != ShapeOrderSp || entry.ID != wantIDs[i] {
+			t.Fatalf("GetMasterShapeOrder after the move[%d] = %+v, want sp %d", i, entry, wantIDs[i])
+		}
+	}
+
+	out := filepath.Join(t.TempDir(), "master_order.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+
+	// the order of the shapes is kept in the saved master (the id of the
+	// first shape of the saved shape tree is the id of the moved shape)
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	shapeOrder, err = f2.GetMasterShapeOrder(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, entry := range shapeOrder {
+		if entry.Kind != ShapeOrderSp || entry.ID != wantIDs[i] {
+			t.Fatalf("the order of the shapes of the master is not kept: %v, want %v", shapeOrder, wantIDs)
+		}
+	}
+
+	// the invalid order of the shapes (the entry of the shape tree is
+	// missing)
+	invalid := append([]ShapeOrder{}, shapeOrder[:len(shapeOrder)-1]...)
+	if err := f.SetMasterShapeOrder(slideMasterTestID, invalid); !errors.Is(err, ErrShapeOrderInvalid) {
+		t.Fatalf("expected ErrShapeOrderInvalid, got %v", err)
+	}
+	// the moved shape that is not in the shape tree
+	if err := f.MoveMasterShape(slideMasterTestID, 100, wantIDs[0]); !errors.As(err, new(ErrShapeNotExist)) {
+		t.Fatalf("expected ErrShapeNotExist, got %v", err)
+	}
+	// the non existing master
+	if _, err := f.GetMasterShapeOrder(1); !errors.As(err, new(ErrSlideMasterNotExist)) {
+		t.Fatalf("expected ErrSlideMasterNotExist, got %v", err)
+	}
+}
+
+// TestLayoutShapeOrder checks that GetLayoutShapeOrder reads the z-order of
+// the shapes of the slide layout (the shape tree of the template layout has
+// the duplicated shape ids) and MoveLayoutShape / SetLayoutShapeOrder work
+// with the shape tree with the duplicated shape ids.
+func TestLayoutShapeOrder(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+
+	// the ids of the shapes of the template layout are 5, 6, 4, 5, 6 (in the
+	// document order): the title and the slide number placeholder share the
+	// id 5, the subtitle and the date placeholder share the id 6
+	shapeOrder, err := f.GetLayoutShapeOrder(slideLayoutTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantIDs := []int{5, 6, 4, 5, 6}
+	if len(shapeOrder) != len(wantIDs) {
+		t.Fatalf("GetLayoutShapeOrder = %v, want %d entries", shapeOrder, len(wantIDs))
+	}
+	for i, entry := range shapeOrder {
+		if entry.Kind != ShapeOrderSp || entry.ID != wantIDs[i] {
+			t.Fatalf("GetLayoutShapeOrder[%d] = %+v, want sp %d", i, entry, wantIDs[i])
+		}
+	}
+
+	// the identity order (the same order the shape tree has) is set: the
+	// shape tree with the duplicated shape ids is reordered to the same
+	// order (the multiset check of the given order)
+	if err := f.SetLayoutShapeOrder(slideLayoutTestID, shapeOrder); err != nil {
+		t.Fatal(err)
+	}
+
+	// the new shape is appended to the end of the shape tree (the id 7) and
+	// is moved before the shape with the id 5 (the last entry with the id 5:
+	// the slide number placeholder)
+	shapeID, err := f.CreateLayoutShape(slideLayoutTestID, DecodeShapeProperties{
+		Xfrm: &DecodeXfrm{
+			Offset:  &Offset{X: 0, Y: 0},
+			Extents: &Extents{CX: 914400, CY: 457200},
+		},
+	}, DecodeTextBody{Paragraph: []DecodeParagraph{{Runs: []DecodeRuns{{Text: "The moved layout shape"}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shapeID != 7 {
+		t.Fatalf("CreateLayoutShape id = %d, want 7", shapeID)
+	}
+	if err := f.MoveLayoutShape(slideLayoutTestID, shapeID, 5); err != nil {
+		t.Fatal(err)
+	}
+	shapeOrder, err = f.GetLayoutShapeOrder(slideLayoutTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantIDs = []int{5, 6, 4, 7, 5, 6}
+	if len(shapeOrder) != len(wantIDs) {
+		t.Fatalf("GetLayoutShapeOrder after the move = %v, want %v", shapeOrder, wantIDs)
+	}
+	for i, entry := range shapeOrder {
+		if entry.Kind != ShapeOrderSp || entry.ID != wantIDs[i] {
+			t.Fatalf("GetLayoutShapeOrder after the move[%d] = %+v, want sp %d", i, entry, wantIDs[i])
+		}
+	}
+
+	out := filepath.Join(t.TempDir(), "layout_order.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+
+	// the order of the shapes is kept in the saved layout
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	shapeOrder, err = f2.GetLayoutShapeOrder(slideLayoutTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, entry := range shapeOrder {
+		if entry.Kind != ShapeOrderSp || entry.ID != wantIDs[i] {
+			t.Fatalf("the order of the shapes of the layout is not kept: %v, want %v", shapeOrder, wantIDs)
+		}
+	}
+
+	// the invalid order of the shapes (the duplicated entry of the shape
+	// tree)
+	invalid := append([]ShapeOrder{}, shapeOrder...)
+	invalid = append(invalid, ShapeOrder{Kind: ShapeOrderSp, ID: 6})
+	if err := f.SetLayoutShapeOrder(slideLayoutTestID, invalid); !errors.Is(err, ErrShapeOrderInvalid) {
+		t.Fatalf("expected ErrShapeOrderInvalid, got %v", err)
+	}
+	// the moved shape that is not in the shape tree
+	if err := f.MoveLayoutShape(slideLayoutTestID, 100, 5); !errors.As(err, new(ErrShapeNotExist)) {
+		t.Fatalf("expected ErrShapeNotExist, got %v", err)
+	}
+	// the non existing layout
+	if _, err := f.GetLayoutShapeOrder(1); !errors.As(err, new(ErrSlideLayoutNotExist)) {
+		t.Fatalf("expected ErrSlideLayoutNotExist, got %v", err)
+	}
+}
+
+// TestMasterShapeHyperLink checks that SetMasterShapeHyperLink sets the
+// external and the internal hyperlink to the shape of the slide master,
+// GetMasterShapeHyperLink / GetMasterShapeHyperLinks read the hyperlink back
+// and LinkTypeNone removes the hyperlink (the relationship of the hyperlink
+// is added to the rels part of the slide master and is removed with the
+// hyperlink).
+func TestMasterShapeHyperLink(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+
+	shapeID, err := f.CreateMasterShape(slideMasterTestID, DecodeShapeProperties{
+		Xfrm: &DecodeXfrm{
+			Offset:  &Offset{X: 457200, Y: 457200},
+			Extents: &Extents{CX: 914400, CY: 457200},
+		},
+	}, DecodeTextBody{Paragraph: []DecodeParagraph{{Runs: []DecodeRuns{{Text: "The master link"}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the external hyperlink (the hyperlink relationship with the
+	// TargetMode "External" is added to the rels part of the slide master)
+	tooltip := "gopptx on GitHub"
+	const linkURL = "https://github.com/kenny-not-dead/gopptx"
+	if err := f.SetMasterShapeHyperLink(slideMasterTestID, shapeID, linkURL, LinkTypeExternal,
+		HyperlinkOpts{Tooltip: &tooltip}); err != nil {
+		t.Fatal(err)
+	}
+	hasLink, link, err := f.GetMasterShapeHyperLink(slideMasterTestID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasLink || link != linkURL {
+		t.Fatalf("GetMasterShapeHyperLink = %v %q, want true %q", hasLink, link, linkURL)
+	}
+	if ids, err := f.GetMasterShapeHyperLinks(slideMasterTestID, LinkTypeExternal); err != nil {
+		t.Fatal(err)
+	} else if len(ids) != 1 || ids[0] != shapeID {
+		t.Fatalf("GetMasterShapeHyperLinks(External) = %v, want [%d]", ids, shapeID)
+	}
+
+	out := filepath.Join(t.TempDir(), "master_link_external.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	// the hyperlink relationship in the rels part of the slide master
+	masterRels := string(readZipPart(t, out, slideMasterTestRelsPath))
+	if !strings.Contains(masterRels, `relationships/hyperlink" Target="`+linkURL+`" TargetMode="External"`) {
+		t.Fatalf("the hyperlink relationship is not added to the rels part of the slide master:\n%s", masterRels)
+	}
+	// the hyperlink element of the shape of the slide master
+	master := string(readZipPart(t, out, slideMasterTestPath))
+	if !strings.Contains(master, `<a:hlinkClick r:id="`) || !strings.Contains(master, `tooltip="gopptx on GitHub"`) {
+		t.Fatalf("the hyperlink element is not written to the shape of the slide master:\n%s", master)
+	}
+
+	// the internal hyperlink to the slide of the presentation (the
+	// relationship of the type "slide" without the TargetMode is added to
+	// the rels part of the slide master, the target is the relative path of
+	// the target slide part)
+	const targetSlideID = 256
+	if err := f.SetMasterShapeHyperLink(slideMasterTestID, shapeID, strconv.Itoa(targetSlideID), LinkTypeLocation); err != nil {
+		t.Fatal(err)
+	}
+	hasLink, link, err = f.GetMasterShapeHyperLink(slideMasterTestID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasLink || link != strconv.Itoa(targetSlideID) {
+		t.Fatalf("GetMasterShapeHyperLink = %v %q, want true %d", hasLink, link, targetSlideID)
+	}
+	if ids, err := f.GetMasterShapeHyperLinks(slideMasterTestID, LinkTypeLocation); err != nil {
+		t.Fatal(err)
+	} else if len(ids) != 1 || ids[0] != shapeID {
+		t.Fatalf("GetMasterShapeHyperLinks(Location) = %v, want [%d]", ids, shapeID)
+	}
+
+	out = filepath.Join(t.TempDir(), "master_link_location.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	masterRels = string(readZipPart(t, out, slideMasterTestRelsPath))
+	if !strings.Contains(masterRels, `relationships/slide" Target="../slides/slide1.xml"`) {
+		t.Fatalf("the relationship to the target slide is not added to the rels part of the slide master:\n%s", masterRels)
+	}
+	master = string(readZipPart(t, out, slideMasterTestPath))
+	if !strings.Contains(master, `action="ppaction://hlinksldjump"`) {
+		t.Fatalf("the slide jump action is not written to the hyperlink element:\n%s", master)
+	}
+
+	// the hyperlink is kept on the round trip of the saved file
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	hasLink, link, err = f2.GetMasterShapeHyperLink(slideMasterTestID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasLink || link != strconv.Itoa(targetSlideID) {
+		t.Fatalf("GetMasterShapeHyperLink after the round trip = %v %q, want true %d", hasLink, link, targetSlideID)
+	}
+
+	// the hyperlink is removed (the relationships of the hyperlink are
+	// removed from the rels part of the slide master)
+	if err := f.SetMasterShapeHyperLink(slideMasterTestID, shapeID, "", LinkTypeNone); err != nil {
+		t.Fatal(err)
+	}
+	hasLink, link, err = f.GetMasterShapeHyperLink(slideMasterTestID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasLink || link != "" {
+		t.Fatalf("the hyperlink is not removed: %v %q", hasLink, link)
+	}
+	out = filepath.Join(t.TempDir(), "master_link_none.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	masterRels = string(readZipPart(t, out, slideMasterTestRelsPath))
+	if strings.Contains(masterRels, "relationships/hyperlink") ||
+		strings.Contains(masterRels, `relationships/slide" Target="../slides`) {
+		t.Fatalf("the relationships of the hyperlink are not removed from the rels part of the slide master:\n%s", masterRels)
+	}
+	// the relationships of the slide layouts of the master are kept
+	if !strings.Contains(masterRels, `relationships/slideLayout"`) {
+		t.Fatalf("the relationships of the slide layouts are removed from the rels part of the slide master:\n%s", masterRels)
+	}
+
+	// the non existing master and the shape
+	if _, _, err := f.GetMasterShapeHyperLink(1, shapeID); !errors.As(err, new(ErrSlideMasterNotExist)) {
+		t.Fatalf("expected ErrSlideMasterNotExist, got %v", err)
+	}
+	if _, _, err := f.GetMasterShapeHyperLink(slideMasterTestID, 100); !errors.As(err, new(ErrShapeNotExist)) {
+		t.Fatalf("expected ErrShapeNotExist, got %v", err)
+	}
+}
+
+// TestLayoutShapeHyperLink checks that SetLayoutShapeHyperLink sets the
+// external and the internal hyperlink to the shape of the slide layout,
+// GetLayoutShapeHyperLink / GetLayoutShapeHyperLinks read the hyperlink back
+// and LinkTypeNone removes the hyperlink (the relationship of the hyperlink
+// is added to the rels part of the slide layout and is removed with the
+// hyperlink).
+func TestLayoutShapeHyperLink(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+
+	shapeID, err := f.CreateLayoutShape(slideLayoutTestID, DecodeShapeProperties{
+		Xfrm: &DecodeXfrm{
+			Offset:  &Offset{X: 457200, Y: 457200},
+			Extents: &Extents{CX: 914400, CY: 457200},
+		},
+	}, DecodeTextBody{Paragraph: []DecodeParagraph{{Runs: []DecodeRuns{{Text: "The layout link"}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the external hyperlink (the hyperlink relationship with the
+	// TargetMode "External" is added to the rels part of the slide layout)
+	tooltip := "gopptx on GitHub"
+	const linkURL = "https://github.com/kenny-not-dead/gopptx"
+	if err := f.SetLayoutShapeHyperLink(slideLayoutTestID, shapeID, linkURL, LinkTypeExternal,
+		HyperlinkOpts{Tooltip: &tooltip}); err != nil {
+		t.Fatal(err)
+	}
+	hasLink, link, err := f.GetLayoutShapeHyperLink(slideLayoutTestID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasLink || link != linkURL {
+		t.Fatalf("GetLayoutShapeHyperLink = %v %q, want true %q", hasLink, link, linkURL)
+	}
+	if ids, err := f.GetLayoutShapeHyperLinks(slideLayoutTestID, LinkTypeExternal); err != nil {
+		t.Fatal(err)
+	} else if len(ids) != 1 || ids[0] != shapeID {
+		t.Fatalf("GetLayoutShapeHyperLinks(External) = %v, want [%d]", ids, shapeID)
+	}
+
+	out := filepath.Join(t.TempDir(), "layout_link_external.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	// the hyperlink relationship in the rels part of the slide layout
+	layoutRels := string(readZipPart(t, out, "ppt/slideLayouts/_rels/slideLayout1.xml.rels"))
+	if !strings.Contains(layoutRels, `relationships/hyperlink" Target="`+linkURL+`" TargetMode="External"`) {
+		t.Fatalf("the hyperlink relationship is not added to the rels part of the slide layout:\n%s", layoutRels)
+	}
+	// the hyperlink element of the shape of the slide layout
+	layout := string(readZipPart(t, out, layoutTestPath))
+	if !strings.Contains(layout, `<a:hlinkClick r:id="`) || !strings.Contains(layout, `tooltip="gopptx on GitHub"`) {
+		t.Fatalf("the hyperlink element is not written to the shape of the slide layout:\n%s", layout)
+	}
+
+	// the internal hyperlink to the slide of the presentation (the
+	// relationship of the type "slide" without the TargetMode is added to
+	// the rels part of the slide layout, the target is the relative path of
+	// the target slide part)
+	const targetSlideID = 256
+	if err := f.SetLayoutShapeHyperLink(slideLayoutTestID, shapeID, strconv.Itoa(targetSlideID), LinkTypeLocation); err != nil {
+		t.Fatal(err)
+	}
+	hasLink, link, err = f.GetLayoutShapeHyperLink(slideLayoutTestID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasLink || link != strconv.Itoa(targetSlideID) {
+		t.Fatalf("GetLayoutShapeHyperLink = %v %q, want true %d", hasLink, link, targetSlideID)
+	}
+	if ids, err := f.GetLayoutShapeHyperLinks(slideLayoutTestID, LinkTypeLocation); err != nil {
+		t.Fatal(err)
+	} else if len(ids) != 1 || ids[0] != shapeID {
+		t.Fatalf("GetLayoutShapeHyperLinks(Location) = %v, want [%d]", ids, shapeID)
+	}
+
+	out = filepath.Join(t.TempDir(), "layout_link_location.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	layoutRels = string(readZipPart(t, out, "ppt/slideLayouts/_rels/slideLayout1.xml.rels"))
+	if !strings.Contains(layoutRels, `relationships/slide" Target="../slides/slide1.xml"`) {
+		t.Fatalf("the relationship to the target slide is not added to the rels part of the slide layout:\n%s", layoutRels)
+	}
+	layout = string(readZipPart(t, out, layoutTestPath))
+	if !strings.Contains(layout, `action="ppaction://hlinksldjump"`) {
+		t.Fatalf("the slide jump action is not written to the hyperlink element:\n%s", layout)
+	}
+
+	// the hyperlink is kept on the round trip of the saved file
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	hasLink, link, err = f2.GetLayoutShapeHyperLink(slideLayoutTestID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasLink || link != strconv.Itoa(targetSlideID) {
+		t.Fatalf("GetLayoutShapeHyperLink after the round trip = %v %q, want true %d", hasLink, link, targetSlideID)
+	}
+
+	// the hyperlink is removed (the relationships of the hyperlink are
+	// removed from the rels part of the slide layout)
+	if err := f.SetLayoutShapeHyperLink(slideLayoutTestID, shapeID, "", LinkTypeNone); err != nil {
+		t.Fatal(err)
+	}
+	hasLink, link, err = f.GetLayoutShapeHyperLink(slideLayoutTestID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasLink || link != "" {
+		t.Fatalf("the hyperlink is not removed: %v %q", hasLink, link)
+	}
+	out = filepath.Join(t.TempDir(), "layout_link_none.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	layoutRels = string(readZipPart(t, out, "ppt/slideLayouts/_rels/slideLayout1.xml.rels"))
+	if strings.Contains(layoutRels, "relationships/hyperlink") ||
+		strings.Contains(layoutRels, `relationships/slide" Target="../slides`) {
+		t.Fatalf("the relationships of the hyperlink are not removed from the rels part of the slide layout:\n%s", layoutRels)
+	}
+	// the relationship of the slide master of the layout is kept
+	if !strings.Contains(layoutRels, `relationships/slideMaster"`) {
+		t.Fatalf("the relationship of the slide master is removed from the rels part of the slide layout:\n%s", layoutRels)
+	}
+
+	// the non existing layout and the shape
+	if _, _, err := f.GetLayoutShapeHyperLink(1, shapeID); !errors.As(err, new(ErrSlideLayoutNotExist)) {
+		t.Fatalf("expected ErrSlideLayoutNotExist, got %v", err)
+	}
+	if _, _, err := f.GetLayoutShapeHyperLink(slideLayoutTestID, 100); !errors.As(err, new(ErrShapeNotExist)) {
+		t.Fatalf("expected ErrShapeNotExist, got %v", err)
+	}
+}
+
+// TestNewSlideMaster checks that the NewSlideMaster function creates the new
+// slide master as the copy of the source master (the "duplicate master" of
+// PowerPoint): the new master part is the byte copy of the source master
+// part with the ids of the slide layouts of the new master rewritten, the
+// new layouts are the byte copies of the layouts of the source master
+// pointing to the new master, and the content types, the rels parts, the
+// slide master id list of the presentation and the rels of the presentation
+// are updated. The file is stable on the round trip.
+func TestNewSlideMaster(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+
+	// the hyperlink of a shape of the source master (the hyperlink
+	// relationship is added to the rels part of the source master and must
+	// be copied with the new master)
+	const linkURL = "https://github.com/kenny-not-dead/gopptx"
+	if err := f.SetMasterShapeHyperLink(slideMasterTestID, 0, linkURL, LinkTypeExternal); err != nil {
+		t.Fatal(err)
+	}
+
+	newMasterID, err := f.NewSlideMaster(slideMasterTestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newMasterID != slideMasterTestID+2 {
+		t.Fatalf("NewSlideMaster id = %d, want %d", newMasterID, slideMasterTestID+2)
+	}
+
+	out := filepath.Join(t.TempDir(), "new_master.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+	// the part of the new master: the copy of the part of the source master
+	// (the id of the slide layout of the new master in the slide layout id
+	// list is rewritten, the rId is kept)
+	newMasterPart := "ppt/slideMasters/slideMaster2.xml"
+	wantMaster := bytes.ReplaceAll(readZipPart(t, out, slideMasterTestPath),
+		[]byte(`<p:sldLayoutId id="`+strconv.Itoa(slideLayoutTestID)+`"`),
+		[]byte(`<p:sldLayoutId id="`+strconv.Itoa(slideLayoutTestID+2)+`"`))
+	if !bytes.Equal(readZipPart(t, out, newMasterPart), wantMaster) {
+		t.Fatalf("the part of the new master is not the copy of the source master with the rewritten layout id")
+	}
+	// the part of the new layout: the byte copy of the part of the source
+	// layout (the rels part of the new layout points to the new master)
+	newLayoutPart := "ppt/slideLayouts/slideLayout2.xml"
+	if !bytes.Equal(readZipPart(t, out, newLayoutPart), readZipPart(t, out, layoutTestPath)) {
+		t.Fatalf("the part of the new layout is not the copy of the source layout")
+	}
+	newLayoutRels := string(readZipPart(t, out, "ppt/slideLayouts/_rels/slideLayout2.xml.rels"))
+	if !strings.Contains(newLayoutRels, `relationships/slideMaster" Target="../slideMasters/slideMaster2.xml"`) {
+		t.Fatalf("the rels part of the new layout is not created:\n%s", newLayoutRels)
+	}
+	// the rels part of the new master: the copy of the rels part of the
+	// source master (the target of the relationship of the slide layout is
+	// rewritten to the new layout)
+	newMasterRels := string(readZipPart(t, out, "ppt/slideMasters/_rels/slideMaster2.xml.rels"))
+	if !strings.Contains(newMasterRels, `relationships/slideLayout" Target="../slideLayouts/slideLayout2.xml"`) {
+		t.Fatalf("the rels part of the new master is not created:\n%s", newMasterRels)
+	}
+	if !strings.Contains(newMasterRels, `relationships/theme"`) {
+		t.Fatalf("the theme relationship is not kept in the rels part of the new master:\n%s", newMasterRels)
+	}
+	// the hyperlink relationship of the source master is copied with the
+	// new master
+	if !strings.Contains(newMasterRels, `relationships/hyperlink" Target="`+linkURL+`" TargetMode="External"`) {
+		t.Fatalf("the hyperlink relationship is not copied to the rels part of the new master:\n%s", newMasterRels)
+	}
+	// the content types of the new master, its rels part, the new layout and
+	// its rels part
+	contentTypes := string(readZipPart(t, out, "[Content_Types].xml"))
+	if !strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml" PartName="/ppt/slideMasters/slideMaster2.xml"`) ||
+		!strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-package.relationships+xml" PartName="/ppt/slideMasters/_rels/slideMaster2.xml.rels"`) ||
+		!strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml" PartName="/ppt/slideLayouts/slideLayout2.xml"`) ||
+		!strings.Contains(contentTypes, `ContentType="application/vnd.openxmlformats-package.relationships+xml" PartName="/ppt/slideLayouts/_rels/slideLayout2.xml.rels"`) {
+		t.Fatalf("the content types of the new master and the new layout are not added:\n%s", contentTypes)
+	}
+	// the entry of the new master in the slide master id list of the
+	// presentation (the relationship of the new master in the rels of the
+	// presentation)
+	presentation := string(readZipPart(t, out, "ppt/presentation.xml"))
+	if !strings.Contains(presentation, `<p:sldMasterId id="`+strconv.Itoa(slideMasterTestID)+`" r:id="rId2"/>`) ||
+		!strings.Contains(presentation, `<p:sldMasterId id="`+strconv.Itoa(newMasterID)+`" r:id="rId5"/>`) {
+		t.Fatalf("the entry of the new master is not added to the slide master id list of the presentation:\n%s", presentation)
+	}
+	presentationRels := string(readZipPart(t, out, "ppt/_rels/presentation.xml.rels"))
+	if !strings.Contains(presentationRels, `relationships/slideMaster" Target="slideMasters/slideMaster2.xml"`) {
+		t.Fatalf("the relationship of the new master is not added to the rels of the presentation:\n%s", presentationRels)
+	}
+	// the lists of the masters and the layouts of the presentation
+	if list := f.GetSlideMasterList(); len(list) != 2 || list[1] != newMasterID {
+		t.Fatalf("GetSlideMasterList = %v, want [%d %d]", list, slideMasterTestID, newMasterID)
+	}
+	if list := f.GetSlideLayoutList(); len(list) != 2 || list[1] != slideLayoutTestID+2 {
+		t.Fatalf("GetSlideLayoutList = %v, want [%d %d]", list, slideLayoutTestID, slideLayoutTestID+2)
+	}
+
+	// the second new master (the id is incremented again, the part is
+	// created with the next free index)
+	secondMasterID, err := f.NewSlideMaster(newMasterID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondMasterID != slideMasterTestID+4 {
+		t.Fatalf("the second NewSlideMaster id = %d, want %d", secondMasterID, slideMasterTestID+4)
+	}
+	if list := f.GetSlideLayoutList(); len(list) != 3 || list[2] != slideLayoutTestID+4 {
+		t.Fatalf("GetSlideLayoutList after the second NewSlideMaster = %v, want 3 entries", list)
+	}
+
+	// the file is stable on the round trip: the lists of the masters and
+	// the layouts are kept, the parts of the new master and the new layout
+	// are kept
+	f2, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	if list := f2.GetSlideMasterList(); len(list) != 2 || list[1] != newMasterID {
+		t.Fatalf("GetSlideMasterList after the round trip = %v, want [%d %d]", list, slideMasterTestID, newMasterID)
+	}
+	if list := f2.GetSlideLayoutList(); len(list) != 2 || list[1] != slideLayoutTestID+2 {
+		t.Fatalf("GetSlideLayoutList after the round trip = %v, want [%d %d]", list, slideLayoutTestID, slideLayoutTestID+2)
+	}
+	out2 := filepath.Join(t.TempDir(), "new_master_roundtrip.pptx")
+	if err := f2.SaveAs(out2); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(readZipPart(t, out2, newMasterPart), readZipPart(t, out, newMasterPart)) ||
+		!bytes.Equal(readZipPart(t, out2, newLayoutPart), readZipPart(t, out, newLayoutPart)) {
+		t.Fatalf("the parts of the new master and the new layout are not kept on the round trip")
+	}
+
+	// the non existing source master
+	if _, err := f.NewSlideMaster(1); !errors.As(err, new(ErrSlideMasterNotExist)) {
+		t.Fatalf("expected ErrSlideMasterNotExist, got %v", err)
 	}
 }

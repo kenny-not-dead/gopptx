@@ -61,12 +61,12 @@ type slideMasterPart struct {
 	XMLNSP15          string              `xml:"xmlns:p15,attr"`
 	XMLNSMC           string              `xml:"xmlns:mc,attr"`
 	CommonSlideData   SlideData           `xml:"p:cSld"`
-	ColorMap          *decodeColorMap     `xml:"p:clrMap"`
+	ColorMap          *DecodeColorMap     `xml:"p:clrMap"`
 	SlideLayoutIDList *innerXML           `xml:"p:sldLayoutIdLst"`
 	Transition        *innerXML           `xml:"p:transition"`
 	Timing            *innerXML           `xml:"p:timing"`
 	HeaderFooter      *decodeHeaderFooter `xml:"p:hf"`
-	TextStyles        *innerXML           `xml:"p:txStyles"`
+	TextStyles        *textStylesPart     `xml:"p:txStyles"`
 	ExtLst            *innerXML           `xml:"p:extLst"`
 }
 
@@ -99,6 +99,7 @@ const (
 	shapeTreeChildPic
 	shapeTreeChildCxnSp
 	shapeTreeChildGraphicFrame
+	shapeTreeChildGroupShape
 )
 
 // shapeTreeOrderEntry is one entry of the document order of the shape tree
@@ -116,9 +117,10 @@ type ShapeTree struct {
 	Picture                       []Picture                      `xml:"p:pic"`
 	Connector                     []Connector                    `xml:"p:cxnSp"`
 	GraphicFrame                  []GraphicFrame                 `xml:"p:graphicFrame"`
+	GroupShape                    []GroupShape                   `xml:"p:grpSp"`
 	// shapeOrder is the document order of the children (sp/pic/cxnSp/
-	// graphicFrame) of the shape tree, the z-order of the shapes; when it
-	// is empty (the shape tree is built without the document order) the
+	// graphicFrame/grpSp) of the shape tree, the z-order of the shapes; when
+	// it is empty (the shape tree is built without the document order) the
 	// children are emitted as blocks in the struct field order
 	shapeOrder []shapeTreeOrderEntry
 }
@@ -128,7 +130,31 @@ type ShapeTree struct {
 // element names are written with the literal prefixes, the same way the
 // struct tags of the slide do it.
 func (st ShapeTree) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	start.Name = xml.Name{Local: "p:spTree"}
+	return st.marshalShapeTree(e, "p:spTree")
+}
+
+// GroupShape defines a group shape (p:grpSp) in the shape tree of the slide:
+// the content model is the same as the shape tree (the non-visual group
+// shape properties, the group shape properties and the children of the
+// group: the shapes, the pictures, the connectors, the graphic frames and
+// the nested groups, in the document order).
+type GroupShape struct {
+	ShapeTree
+}
+
+// MarshalXML writes the group shape with the p:grpSp element name (the
+// content is the same as the shape tree).
+func (g GroupShape) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	return g.ShapeTree.marshalShapeTree(e, "p:grpSp")
+}
+
+// marshalShapeTree writes the shape tree (or the group shape, with the
+// p:grpSp element name), keeping the document order of the children, so the
+// z-order of the shapes is preserved on save. The element names are written
+// with the literal prefixes, the same way the struct tags of the slide do
+// it.
+func (st ShapeTree) marshalShapeTree(e *xml.Encoder, name string) error {
+	start := xml.StartElement{Name: xml.Name{Local: name}}
 	if err := e.EncodeToken(start); err != nil {
 		return err
 	}
@@ -176,6 +202,11 @@ func (st ShapeTree) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 				return err
 			}
 		}
+		for i := range st.GroupShape {
+			if err := emit("p:grpSp", &st.GroupShape[i]); err != nil {
+				return err
+			}
+		}
 	} else {
 		for i := range st.shapeOrder {
 			entry := &st.shapeOrder[i]
@@ -194,6 +225,10 @@ func (st ShapeTree) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 				}
 			case shapeTreeChildGraphicFrame:
 				if err := emit("p:graphicFrame", &st.GraphicFrame[entry.index]); err != nil {
+					return err
+				}
+			case shapeTreeChildGroupShape:
+				if err := emit("p:grpSp", &st.GroupShape[entry.index]); err != nil {
 					return err
 				}
 			}
@@ -538,6 +573,32 @@ type SpacingChange struct {
 	SpacingPts     *SpacingPts     `xml:"a:spcPts,omitempty"`
 }
 
+// textStyle defines the titleStyle, the bodyStyle or the otherStyle element
+// of the text styles of the slide master part (the p:txStyles element): the
+// paragraph properties of the text levels of the style (the a:defPPr and
+// the a:lvl1pPr–a:lvl9pPr elements).
+type textStyle struct {
+	DefaultParagraphProperties *ParagraphProperties `xml:"a:defPPr,omitempty"`
+	Lvl1                       *ParagraphProperties `xml:"a:lvl1pPr,omitempty"`
+	Lvl2                       *ParagraphProperties `xml:"a:lvl2pPr,omitempty"`
+	Lvl3                       *ParagraphProperties `xml:"a:lvl3pPr,omitempty"`
+	Lvl4                       *ParagraphProperties `xml:"a:lvl4pPr,omitempty"`
+	Lvl5                       *ParagraphProperties `xml:"a:lvl5pPr,omitempty"`
+	Lvl6                       *ParagraphProperties `xml:"a:lvl6pPr,omitempty"`
+	Lvl7                       *ParagraphProperties `xml:"a:lvl7pPr,omitempty"`
+	Lvl8                       *ParagraphProperties `xml:"a:lvl8pPr,omitempty"`
+	Lvl9                       *ParagraphProperties `xml:"a:lvl9pPr,omitempty"`
+}
+
+// textStylesPart defines the txStyles element of the slide master part (the
+// text styles of the master: the title style, the body style and the other
+// style).
+type textStylesPart struct {
+	TitleStyle *textStyle `xml:"p:titleStyle,omitempty"`
+	BodyStyle  *textStyle `xml:"p:bodyStyle,omitempty"`
+	OtherStyle *textStyle `xml:"p:otherStyle,omitempty"`
+}
+
 type Runs struct {
 	RunProperties *RunProperties `xml:"a:rPr,omitempty"`
 	Text          string         `xml:"a:t"`
@@ -591,12 +652,12 @@ type decodeSlideLayout struct {
 type decodeSlideMaster struct {
 	XMLName           xml.Name            `xml:"sldMaster"`
 	CommonSlideData   decodeSlideData     `xml:"cSld"`
-	ColorMap          *decodeColorMap     `xml:"clrMap"`
+	ColorMap          *DecodeColorMap     `xml:"clrMap"`
 	SlideLayoutIDList *innerXML           `xml:"sldLayoutIdLst"`
 	Transition        *innerXML           `xml:"transition"`
 	Timing            *innerXML           `xml:"timing"`
 	HeaderFooter      *decodeHeaderFooter `xml:"hf"`
-	TextStyles        *innerXML           `xml:"txStyles"`
+	TextStyles        *DecodeTextStyles   `xml:"txStyles"`
 	ExtLst            *innerXML           `xml:"extLst"`
 }
 
@@ -605,9 +666,12 @@ type decodeClrMapOverride struct {
 	MasterClrMapping *MasterColorMapping `xml:"masterClrMapping,omitempty"`
 }
 
-// decodeColorMap directly maps the clrMap element (CT_ColorMapping) of the
-// slide master: the color mapping of the master (the attributes only).
-type decodeColorMap struct {
+// DecodeColorMap directly maps the clrMap element (CT_ColorMapping) of the
+// slide master: the color mapping of the master (the attributes only). The
+// values of the color map are the names of the theme scheme colors (the
+// "dk1", the "lt1", the "accent1"–"accent6", the "hlink" and the "folHlink"
+// names of the theme color scheme).
+type DecodeColorMap struct {
 	BG1      string `xml:"bg1,attr"`
 	BG2      string `xml:"bg2,attr"`
 	TX1      string `xml:"tx1,attr"`
@@ -622,7 +686,7 @@ type decodeColorMap struct {
 	FolHLink string `xml:"folHlink,attr"`
 }
 
-// decodeHeaderFooter directly maps the hf element (CT_HeaderFooter) of the
+// DecodeHeaderFooter directly maps the hf element (CT_HeaderFooter) of the
 // slide master: the header footer options (the attributes only). The
 // attributes are optional, so the absent attribute is omitted on the
 // round trip (the omitempty tag).
@@ -630,6 +694,34 @@ type decodeHeaderFooter struct {
 	Date   string `xml:"dt,attr,omitempty"`
 	Footer string `xml:"ftr,attr,omitempty"`
 	Header string `xml:"hdr,attr,omitempty"`
+}
+
+// DecodeTextStyle directly maps the titleStyle, the bodyStyle or the
+// otherStyle element of the slide master text styles (p:txStyles): the
+// paragraph properties of the text levels of the style (the a:defPPr and
+// the a:lvl1pPr–a:lvl9pPr elements, the CT_TextParagraphProperties).
+type DecodeTextStyle struct {
+	DefaultParagraphProperties *DecodeParagraphProperties `xml:"defPPr,omitempty"`
+	Lvl1                       *DecodeParagraphProperties `xml:"lvl1pPr,omitempty"`
+	Lvl2                       *DecodeParagraphProperties `xml:"lvl2pPr,omitempty"`
+	Lvl3                       *DecodeParagraphProperties `xml:"lvl3pPr,omitempty"`
+	Lvl4                       *DecodeParagraphProperties `xml:"lvl4pPr,omitempty"`
+	Lvl5                       *DecodeParagraphProperties `xml:"lvl5pPr,omitempty"`
+	Lvl6                       *DecodeParagraphProperties `xml:"lvl6pPr,omitempty"`
+	Lvl7                       *DecodeParagraphProperties `xml:"lvl7pPr,omitempty"`
+	Lvl8                       *DecodeParagraphProperties `xml:"lvl8pPr,omitempty"`
+	Lvl9                       *DecodeParagraphProperties `xml:"lvl9pPr,omitempty"`
+}
+
+// DecodeTextStyles directly maps the txStyles element (CT_TextListStyle) of
+// the slide master: the text styles of the master (the title style, the
+// body style and the other style). The text styles of the master are the
+// default paragraph properties of the title, the body and the other text
+// of the slides of the master (the styles are inherited by the slides).
+type DecodeTextStyles struct {
+	TitleStyle *DecodeTextStyle `xml:"titleStyle,omitempty"`
+	BodyStyle  *DecodeTextStyle `xml:"bodyStyle,omitempty"`
+	OtherStyle *DecodeTextStyle `xml:"otherStyle,omitempty"`
 }
 
 type decodeSlideData struct {
@@ -658,6 +750,15 @@ type decodeShapeTreeChild struct {
 	Picture      *decodePicture
 	Connector    *decodeConnector
 	GraphicFrame *decodeGraphicFrame
+	GroupShape   *decodeGroupShape
+}
+
+// decodeGroupShape directly maps the grpSp element (the group shape) of the
+// shape tree: the content model is the same as the shape tree (the
+// non-visual group shape properties, the group shape properties and the
+// children of the group, in the document order, the groups can be nested).
+type decodeGroupShape struct {
+	decodeShapeTree
 }
 
 type decodeShapeTree struct {
@@ -715,9 +816,15 @@ func (dst *decodeShapeTree) UnmarshalXML(d *xml.Decoder, start xml.StartElement)
 					return err
 				}
 				dst.Children = append(dst.Children, decodeShapeTreeChild{GraphicFrame: gf})
+			case "grpSp":
+				g := new(decodeGroupShape)
+				if err := d.DecodeElement(g, &t); err != nil {
+					return err
+				}
+				dst.Children = append(dst.Children, decodeShapeTreeChild{GroupShape: g})
 			default:
-				// unknown child of the shape tree (grpSp, ...): it is not
-				// modeled and is not preserved, the same as before
+				// unknown child of the shape tree (custDataLst, ...): it is
+				// not modeled and is not preserved, the same as before
 				if err := d.Skip(); err != nil {
 					return err
 				}

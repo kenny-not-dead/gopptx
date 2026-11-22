@@ -405,3 +405,78 @@ func TestAddDeleteChart(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestAddChartFromBytes checks that AddChartFromBytes adds the chart from
+// the given data of the chart part to the slide: the empty data returns the
+// error, the data without the XML header is wrapped by the header, the
+// reference to the external data is removed from the given data, the chart
+// is preserved on the round trip.
+func TestAddChartFromBytes(t *testing.T) {
+	f, err := OpenFile(testFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	// the empty chart data
+	if _, err := f.AddChartFromBytes(257, nil, nil); !errors.Is(err, ErrChartEmpty) {
+		t.Fatalf("expected ErrChartEmpty, got %v", err)
+	}
+	// the slide that is not in the presentation
+	if _, err := f.AddChartFromBytes(999, []byte("<c:chartSpace/>"), nil); !errors.As(err, new(ErrSlideNotExist)) {
+		t.Fatalf("expected ErrSlideNotExist, got %v", err)
+	}
+
+	// the data of the chart part without the XML header and with the
+	// reference to the external data
+	data := newChartSpaceXML([]string{"a", "b"}, []ChartSeries{{Name: "s", Values: []float64{1, 2}}}, "From bytes")
+	data = bytes.TrimPrefix(data, []byte(xml.Header))
+	data = bytes.Replace(data, []byte("<c:chart/>"), []byte(`<c:externalData r:id="rId1"/><c:chart/>`), 1)
+
+	chartID, err := f.AddChartFromBytes(257, data, &ChartOptions{Name: "Chart from bytes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	charts, err := f.GetCharts(257)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(charts) != 1 {
+		t.Fatalf("expected 1 chart in the slide, got %d", len(charts))
+	}
+	if id := frameID(charts[0]); id != chartID {
+		t.Fatalf("expected the chart id %d, got %d", chartID, id)
+	}
+
+	out := filepath.Join(t.TempDir(), "chart_from_bytes.pptx")
+	if err := f.SaveAs(out); err != nil {
+		t.Fatal(err)
+	}
+
+	// the chart is preserved on the round trip
+	reopened, err := OpenFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	charts, err = reopened.GetCharts(257)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(charts) != 1 {
+		t.Fatalf("expected 1 chart in the saved slide, got %d", len(charts))
+	}
+	if id := frameID(charts[0]); id != chartID {
+		t.Fatalf("expected the chart id %d in the saved slide, got %d", chartID, id)
+	}
+	// the data of the chart part is in the saved presentation, the
+	// reference to the external data is removed from the data
+	chartPart := string(readZipPart(t, out, "ppt/charts/chart1.xml"))
+	if !strings.Contains(chartPart, "From bytes") {
+		t.Fatal("the data of the chart part is not kept in the saved presentation")
+	}
+	if strings.Contains(chartPart, "externalData") {
+		t.Fatal("the reference to the external data is not removed from the data of the chart part")
+	}
+}

@@ -78,11 +78,19 @@ func (cs *decodeSlideData) deleteShape(shapeID int) bool {
 
 // nextShapeID provides a function to get the next free id of the shape of the
 // shape tree of the common slide data: the max id of the children of the shape
-// tree (the shapes, the pictures and the connectors) plus one.
+// tree (the shapes, the pictures, the connectors and the groups, the shapes
+// of the groups are searched recursively, the ids must be unique in the whole
+// shape tree) plus one.
 func (cs *decodeSlideData) nextShapeID() int {
+	return nextShapeIDInTree(cs.ShapeTree.Children) + 1
+}
+
+// nextShapeIDInTree provides a function to get the max id of the children of
+// the shape tree, searching the group shapes recursively.
+func nextShapeIDInTree(children []decodeShapeTreeChild) int {
 	maxID := 0
-	for i := range cs.ShapeTree.Children {
-		child := &cs.ShapeTree.Children[i]
+	for i := range children {
+		child := &children[i]
 		var id int
 		switch {
 		case child.Shape != nil &&
@@ -97,13 +105,116 @@ func (cs *decodeSlideData) nextShapeID() int {
 			child.Connector.NonVisualConnectorProperties != nil &&
 			child.Connector.NonVisualConnectorProperties.CommonNonVisualProperties != nil:
 			id = child.Connector.NonVisualConnectorProperties.CommonNonVisualProperties.ID
+		case child.GroupShape != nil:
+			if child.GroupShape.NonVisualGroupShapeProperties != nil &&
+				child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties != nil {
+				id = child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties.ID
+			}
+			if inner := nextShapeIDInTree(child.GroupShape.Children); inner > id {
+				id = inner
+			}
 		}
 		if id > maxID {
 			maxID = id
 		}
 	}
 
-	return maxID + 1
+	return maxID
+}
+
+// shapeTreeOrder returns the order (the z-order) of the children of the
+// shape tree of the common slide data, in the document order. The children
+// without the common non-visual properties (the cNvPr element is absent in
+// the part) are not identified by the id and are not in the returned order.
+func (cs *decodeSlideData) shapeTreeOrder() []ShapeOrder {
+	var shapeOrder []ShapeOrder
+	for i := range cs.ShapeTree.Children {
+		if entry, ok := shapeOrderOf(&cs.ShapeTree.Children[i]); ok {
+			shapeOrder = append(shapeOrder, entry)
+		}
+	}
+
+	return shapeOrder
+}
+
+// reorderShapeTree reorders the children of the shape tree of the common
+// slide data by the given order: the given order must contain every child
+// of the shape tree exactly once. The given order is checked as the
+// permutation of the children (the multiset equality: the shape ids of the
+// shape tree can be duplicated, the same as the ids of the placeholders of
+// the slide layout of the template), the duplicated entries are matched to
+// the children in the document order.
+func (cs *decodeSlideData) reorderShapeTree(shapeOrder []ShapeOrder) error {
+	children := cs.ShapeTree.Children
+
+	entries := make([]ShapeOrder, len(children))
+	for i := range children {
+		entry, ok := shapeOrderOf(&children[i])
+		if !ok {
+			// the child has no id (the cNvPr element is absent in the part
+			// XML): it can not be identified in the given order
+			return ErrShapeOrderInvalid
+		}
+		entries[i] = entry
+	}
+	if len(shapeOrder) != len(entries) {
+		return ErrShapeOrderInvalid
+	}
+
+	used := make([]bool, len(children))
+	reordered := make([]decodeShapeTreeChild, 0, len(shapeOrder))
+	for _, entry := range shapeOrder {
+		matched := -1
+		for i := range entries {
+			if used[i] || entries[i] != entry {
+				continue
+			}
+			matched = i
+			break
+		}
+		if matched == -1 {
+			return ErrShapeOrderInvalid
+		}
+		used[matched] = true
+		reordered = append(reordered, children[matched])
+	}
+
+	cs.ShapeTree.Children = reordered
+
+	return nil
+}
+
+// moveShapeOrderEntry returns the shape order with the entry that has the
+// source id moved before the entry that has the target id (the same way the
+// MoveShape function moves the shape before the target shape). When the
+// shape tree has the duplicated shape ids, the entries are matched in the
+// document order (the last entry with the given id is moved).
+func moveShapeOrderEntry(shapeOrder []ShapeOrder, sourceID, targetID int) ([]ShapeOrder, error) {
+	sourceIdx, targetIdx := -1, -1
+	for i, entry := range shapeOrder {
+		if entry.ID == sourceID {
+			sourceIdx = i
+		}
+		if entry.ID == targetID {
+			targetIdx = i
+		}
+	}
+	if sourceIdx == -1 {
+		return nil, ErrShapeNotExist{sourceID}
+	}
+	if targetIdx == -1 {
+		return nil, ErrShapeNotExist{targetID}
+	}
+	if sourceIdx == targetIdx {
+		return shapeOrder, nil
+	}
+
+	moved := shapeOrder[sourceIdx]
+	shapeOrder = append(shapeOrder[:sourceIdx], shapeOrder[sourceIdx+1:]...)
+	if targetIdx > sourceIdx {
+		targetIdx--
+	}
+	return append(shapeOrder[:targetIdx], append([]ShapeOrder{moved}, shapeOrder[targetIdx:]...)...), nil
 }
 
 // commonSlideDataUnsupportedElement checks the raw bytes of the common slide
