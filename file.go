@@ -710,6 +710,7 @@ func newRunProperties(dr *DecodeRunProperties) *RunProperties {
 
 	rp := &RunProperties{
 		Bold:               dr.Bold,
+		Italic:             dr.Italic,
 		Lang:               dr.Lang,
 		Size:               dr.Size,
 		Space:              dr.Space,
