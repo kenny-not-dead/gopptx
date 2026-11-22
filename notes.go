@@ -21,8 +21,9 @@ import (
 // slide. The notes slide part (ppt/notesSlides/notesSlideN.xml) is created
 // with the standard placeholders (the slide image, the notes body and the
 // slide number), the notesSlide relationship is added to the slide rels part
-// and the content types are updated. The notes master and the second theme
-// are created automatically when the presentation has no notes master yet.
+// and the content types are updated. The notes master and the theme of the
+// notes master (the next free theme part in the package) are created
+// automatically when the presentation has no notes master yet.
 func (f *File) NewNotes(slideID int) error {
 	if _, ok := f.getSlideXMLPath(slideID); !ok {
 		return ErrSlideNotExist{slideID}
@@ -252,14 +253,20 @@ func (f *File) ensureNotesMaster() error {
 	}
 
 	if notesMasterRID == "" {
-		// create the notes master part, its rels part and the second theme
+		// create the notes master part, its rels part and the theme of the
+		// notes master (the next free theme part in the package: the theme
+		// part is private to the master, and the slide masters may already
+		// use the theme2.xml and further parts)
+		newThemePath := "ppt/theme/theme" + strconv.Itoa(f.nextThemePartIndex()) + ".xml"
 		f.Pkg.Store(defaultXMLPathNotesMaster, []byte(xml.Header+templateNotesMaster))
-		f.Pkg.Store(defaultXMLPathNotesMasterRels, []byte(xml.Header+templateNotesMasterRels))
-		f.Pkg.Store(defaultXMLPathTheme2, []byte(xml.Header+templateTheme))
+		f.Pkg.Store(defaultXMLPathNotesMasterRels, []byte(strings.Replace(
+			xml.Header+templateNotesMasterRels, "theme/theme2.xml",
+			"theme/"+filepath.Base(newThemePath), 1)))
+		f.Pkg.Store(newThemePath, []byte(xml.Header+templateTheme))
 		// Update [Content_Types].xml
 		_ = f.setContentTypes("/ppt/notesMasters/notesMaster1.xml", ContentTypeNotesMasterML)
 		_ = f.setContentTypes("/ppt/notesMasters/_rels/notesMaster1.xml.rels", ContentTypeRelationships)
-		_ = f.setContentTypes("/ppt/theme/theme2.xml", ContentTypeThemeML)
+		_ = f.setContentTypes("/"+newThemePath, ContentTypeThemeML)
 		// add the notesMaster relationship to the presentation rels part
 		notesMasterRID = "rId" + strconv.Itoa(f.addRels(f.getPresentationRelsPath(), SourceRelationshipNotesMaster, "notesMasters/notesMaster1.xml", ""))
 	}

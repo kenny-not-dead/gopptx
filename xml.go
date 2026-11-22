@@ -54,6 +54,7 @@ const (
 	SourceRelationshipSlide                       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
 	SourceRelationshipSlideLayout                 = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
 	SourceRelationshipSlideMaster                 = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
+	SourceRelationshipTheme                       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
 	StrictNameSpaceDocumentPropertiesVariantTypes = "http://purl.oclc.org/ooxml/officeDocument/docPropsVTypes"
 	StrictNameSpaceDrawingMLMain                  = "http://purl.oclc.org/ooxml/drawingml/main"
 	StrictNameSpaceExtendedProperties             = "http://purl.oclc.org/ooxml/officeDocument/extendedProperties"
@@ -72,7 +73,6 @@ const (
 	defaultXMLPathNotesMaster     = "ppt/notesMasters/notesMaster1.xml"
 	defaultXMLPathNotesMasterRels = "ppt/notesMasters/_rels/notesMaster1.xml.rels"
 	defaultXMLPathTheme           = "ppt/theme/theme1.xml"
-	defaultXMLPathTheme2          = "ppt/theme/theme2.xml"
 )
 
 const (
