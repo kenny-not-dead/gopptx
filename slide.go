@@ -500,13 +500,7 @@ func (f *File) GetShapeOrder(slideID int) ([]ShapeOrder, error) {
 		return shapeOrder, err
 	}
 
-	for i := range slide.CommonSlideData.ShapeTree.Children {
-		if entry, ok := shapeOrderOf(&slide.CommonSlideData.ShapeTree.Children[i]); ok {
-			shapeOrder = append(shapeOrder, entry)
-		}
-	}
-
-	return shapeOrder, nil
+	return slide.CommonSlideData.shapeTreeOrder(), nil
 }
 
 // SetShapeOrder provides a function to set the order (the z-order) of the
@@ -519,38 +513,7 @@ func (f *File) SetShapeOrder(slideID int, shapeOrder []ShapeOrder) error {
 		return err
 	}
 
-	children := slide.CommonSlideData.ShapeTree.Children
-
-	// the given order must contain every child of the shape tree exactly
-	// once
-	index := make(map[ShapeOrder]int, len(children))
-	for i := range children {
-		entry, ok := shapeOrderOf(&children[i])
-		if !ok {
-			// the child has no id (the cNvPr element is absent in the
-			// slide XML): it can not be identified in the given order
-			return ErrShapeOrderInvalid
-		}
-		index[entry] = i
-	}
-	if len(shapeOrder) != len(index) {
-		return ErrShapeOrderInvalid
-	}
-	seen := make(map[ShapeOrder]bool, len(shapeOrder))
-	for _, entry := range shapeOrder {
-		if _, ok := index[entry]; !ok || seen[entry] {
-			return ErrShapeOrderInvalid
-		}
-		seen[entry] = true
-	}
-
-	reordered := make([]decodeShapeTreeChild, 0, len(shapeOrder))
-	for _, entry := range shapeOrder {
-		reordered = append(reordered, children[index[entry]])
-	}
-	slide.CommonSlideData.ShapeTree.Children = reordered
-
-	return nil
+	return slide.CommonSlideData.reorderShapeTree(shapeOrder)
 }
 
 // MoveShape moves the shape to a specified position in the shape tree of
@@ -562,34 +525,12 @@ func (f *File) MoveShape(slideID int, sourceID, targetID int) error {
 	if err != nil {
 		return err
 	}
-
-	sourceIdx, targetIdx := -1, -1
-	for i, entry := range shapeOrder {
-		if entry.ID == sourceID {
-			sourceIdx = i
-		}
-		if entry.ID == targetID {
-			targetIdx = i
-		}
-	}
-	if sourceIdx == -1 {
-		return ErrShapeNotExist{sourceID}
-	}
-	if targetIdx == -1 {
-		return ErrShapeNotExist{targetID}
-	}
-	if sourceIdx == targetIdx {
-		return nil
+	moved, err := moveShapeOrderEntry(shapeOrder, sourceID, targetID)
+	if err != nil {
+		return err
 	}
 
-	moved := shapeOrder[sourceIdx]
-	shapeOrder = append(shapeOrder[:sourceIdx], shapeOrder[sourceIdx+1:]...)
-	if targetIdx > sourceIdx {
-		targetIdx--
-	}
-	shapeOrder = append(shapeOrder[:targetIdx], append([]ShapeOrder{moved}, shapeOrder[targetIdx:]...)...)
-
-	return f.SetShapeOrder(slideID, shapeOrder)
+	return f.SetShapeOrder(slideID, moved)
 }
 
 // shapeOrderOf returns the order entry (the kind and the id) of the child

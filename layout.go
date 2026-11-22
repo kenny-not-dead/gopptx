@@ -350,6 +350,167 @@ func (f *File) DeleteSlideLayoutBackground(layoutID int) error {
 	return f.saveSlideLayout(path, ds)
 }
 
+// GetLayoutShapeOrder provides a function to get the order (the z-order) of
+// the children of the shape tree of the slide layout by the given layout id,
+// in the document order.
+func (f *File) GetLayoutShapeOrder(layoutID int) ([]ShapeOrder, error) {
+	ds, _, err := f.layoutReader(layoutID)
+	if err != nil {
+		return nil, err
+	}
+
+	return ds.CommonSlideData.shapeTreeOrder(), nil
+}
+
+// SetLayoutShapeOrder provides a function to set the order (the z-order) of
+// the children of the shape tree of the slide layout by the given layout id:
+// the given order must contain every child of the shape tree of the layout
+// exactly once. The modification of the layout is not supported for the
+// layouts with the elements that are not modeled by the layout round trip
+// (the layoutCheckModifiable function returns the
+// ErrSlideLayoutUnsupported error for such layouts).
+func (f *File) SetLayoutShapeOrder(layoutID int, shapeOrder []ShapeOrder) error {
+	ds, path, err := f.layoutReader(layoutID)
+	if err != nil {
+		return err
+	}
+	if err := f.layoutCheckModifiable(path, ds); err != nil {
+		return err
+	}
+	if err := ds.CommonSlideData.reorderShapeTree(shapeOrder); err != nil {
+		return err
+	}
+
+	return f.saveSlideLayout(path, ds)
+}
+
+// MoveLayoutShape moves the shape to a specified position in the shape tree
+// of the slide layout by the given layout id: the shape with the given
+// source id is moved before the shape with the given target id (the same
+// way the MoveShape function moves the shape of the slide before the target
+// shape).
+func (f *File) MoveLayoutShape(layoutID int, sourceID, targetID int) error {
+	shapeOrder, err := f.GetLayoutShapeOrder(layoutID)
+	if err != nil {
+		return err
+	}
+	moved, err := moveShapeOrderEntry(shapeOrder, sourceID, targetID)
+	if err != nil {
+		return err
+	}
+
+	return f.SetLayoutShapeOrder(layoutID, moved)
+}
+
+// SetLayoutShapeHyperLink provides a function to set the hyperlink of a
+// shape of the slide layout by the given layout id and shape id (the same
+// way the SetShapeHyperLink function sets the hyperlink of the shape of the
+// slide). The linkType defines the type of the hyperlink: LinkTypeExternal
+// for a URL (a hyperlink relationship with the TargetMode "External" is
+// added to the rels part of the slide layout), LinkTypeLocation for the
+// internal link to the slide of the presentation (the link is the id of the
+// target slide, a relationship of the type "slide" is added to the rels
+// part of the slide layout and the "ppaction://hlinksldjump" action is
+// written to the hyperlink element) and LinkTypeNone to remove the
+// hyperlink from the shape. The modification of the layout is not supported
+// for the layouts with the elements that are not modeled by the layout
+// round trip (the layoutCheckModifiable function returns the
+// ErrSlideLayoutUnsupported error for such layouts).
+func (f *File) SetLayoutShapeHyperLink(layoutID, shapeID int, link string, linkType LinkType, opts ...HyperlinkOpts) error {
+	ds, path, err := f.layoutReader(layoutID)
+	if err != nil {
+		return err
+	}
+	if err := f.layoutCheckModifiable(path, ds); err != nil {
+		return err
+	}
+	shape := ds.CommonSlideData.findShape(shapeID)
+	if shape == nil {
+		return ErrShapeNotExist{shapeID}
+	}
+
+	relsPath := f.getSlideRelsPath(path)
+	var hlink *Hyperlink
+	switch linkType {
+	case LinkTypeExternal:
+		hlink = f.partHyperlinkRelationship(path, relsPath, link)
+	case LinkTypeLocation:
+		targetSlideID, err := strconv.Atoi(link)
+		if err != nil {
+			return ErrLinkTargetInvalid{Target: link}
+		}
+		hlink, err = f.partLocationRelationship(path, relsPath, targetSlideID)
+		if err != nil {
+			return err
+		}
+	case LinkTypeNone:
+		clearShapeRunHyperlinks(shape)
+		f.removeUnusedLinkRels(path, shapeTreeUsedLinkIDs(ds.CommonSlideData.ShapeTree.Children))
+
+		return f.saveSlideLayout(path, ds)
+	default:
+		return ErrInvalidLinkType
+	}
+
+	for _, o := range opts {
+		if o.Tooltip != nil {
+			hlink.Tooltip = *o.Tooltip
+		}
+	}
+	setShapeRunHyperlinks(shape, hlink)
+
+	return f.saveSlideLayout(path, ds)
+}
+
+// GetLayoutShapeHyperLink gets the hyperlink of a shape of the slide layout
+// by the given layout id and shape id (the same way the GetShapeHyperLink
+// function gets the hyperlink of the shape of the slide). It returns true
+// and the link address when the shape has a hyperlink, otherwise it returns
+// false and an empty link address: the target of the hyperlink relationship
+// for the URL links (LinkTypeExternal) and the id of the target slide for
+// the internal links (LinkTypeLocation).
+func (f *File) GetLayoutShapeHyperLink(layoutID, shapeID int) (bool, string, error) {
+	ds, path, err := f.layoutReader(layoutID)
+	if err != nil {
+		return false, "", err
+	}
+	shape := ds.CommonSlideData.findShape(shapeID)
+	if shape == nil {
+		return false, "", ErrShapeNotExist{shapeID}
+	}
+	id, err := shapeHyperlinkID(shape, nil)
+	if err != nil {
+		return false, "", err
+	}
+	if id == "" {
+		return false, "", nil
+	}
+
+	return f.partHyperlinkTarget(path, f.getSlideRelsPath(path), id)
+}
+
+// GetLayoutShapeHyperLinks returns the shape ids that contain hyperlinks in
+// the slide layout by the given layout id (the same way the
+// GetShapeHyperLinks function returns the shape ids of the slide). The
+// optional parameter linkType is used to filter the links: LinkTypeExternal
+// for the URL links, LinkTypeLocation for the internal links to the parts
+// of the presentation and LinkTypeNone for the shapes without hyperlinks.
+// When linkType is empty, all the shapes with hyperlinks are returned.
+func (f *File) GetLayoutShapeHyperLinks(layoutID int, linkType LinkType) ([]int, error) {
+	var ids []int
+	switch linkType {
+	case "", LinkTypeExternal, LinkTypeLocation, LinkTypeNone:
+	default:
+		return ids, ErrInvalidLinkType
+	}
+	ds, path, err := f.layoutReader(layoutID)
+	if err != nil {
+		return ids, err
+	}
+
+	return f.shapeTreeHyperlinkIDs(ds.CommonSlideData.ShapeTree.Children, f.getSlideRelsPath(path), linkType), nil
+}
+
 // slideLayoutPartIndexRe matches the index of the part of the slide layout
 // (the N of the slideLayoutN.xml part name).
 var slideLayoutPartIndexRe = regexp.MustCompile(`^ppt/slideLayouts/slideLayout(\d+)\.xml$`)

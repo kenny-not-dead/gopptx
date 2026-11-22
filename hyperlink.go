@@ -111,7 +111,7 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 		}
 
 		slidePath, _ := f.getSlideXMLPath(slideID)
-		f.removeUnusedLinkRels(slide, slidePath)
+		f.removeUnusedLinkRels(slidePath, shapeTreeUsedLinkIDs(slide.CommonSlideData.ShapeTree.Children))
 
 		return nil
 	default:
@@ -187,27 +187,7 @@ func (f *File) GetShapeHyperLink(slideID, shapeID int) (bool, string, error) {
 	}
 
 	slidePath, _ := f.getSlideXMLPath(slideID)
-	rels, _ := f.relsReader(f.getSlideRelsPath(slidePath))
-	if rels == nil {
-		return false, "", nil
-	}
-
-	rels.mu.Lock()
-	defer rels.mu.Unlock()
-	for _, rel := range rels.Relationships {
-		if rel.ID == id {
-			if rel.Type == SourceRelationshipSlide {
-				// the internal link: the address is the id of the target slide
-				if target := f.slideIDByPart(resolvePartPath(slidePath, rel.Target)); target != 0 {
-					return true, strconv.Itoa(target), nil
-				}
-			}
-
-			return true, rel.Target, nil
-		}
-	}
-
-	return false, "", nil
+	return f.partHyperlinkTarget(slidePath, f.getSlideRelsPath(slidePath), id)
 }
 
 // GetShapeHyperLinks returns the shape ids that contain hyperlinks in the
@@ -230,60 +210,7 @@ func (f *File) GetShapeHyperLinks(slideID int, linkType LinkType) ([]int, error)
 	}
 
 	slidePath, _ := f.getSlideXMLPath(slideID)
-	rels, _ := f.relsReader(f.getSlideRelsPath(slidePath))
-	// relType returns the type of the relationship of the hyperlink of the
-	// shape (the type "hyperlink" for the URL links and the type "slide" for
-	// the internal links) or an empty type when the shape has no hyperlink
-	relType := func(rID string) string {
-		if rID == "" || rels == nil {
-			return ""
-		}
-
-		rels.mu.Lock()
-		defer rels.mu.Unlock()
-		for _, rel := range rels.Relationships {
-			if rel.ID == rID {
-				return rel.Type
-			}
-		}
-
-		return ""
-	}
-
-	for i := range slide.CommonSlideData.ShapeTree.Children {
-		child := &slide.CommonSlideData.ShapeTree.Children[i]
-		shapeID := 0
-		if child.Shape != nil && child.Shape.NonVisualShapeProperties != nil &&
-			child.Shape.NonVisualShapeProperties.CommonNonVisualProperties != nil {
-			shapeID = child.Shape.NonVisualShapeProperties.CommonNonVisualProperties.ID
-		}
-		if child.Picture != nil && child.Picture.NonVisualPictureProperties != nil &&
-			child.Picture.NonVisualPictureProperties.CommonNonVisualProperties != nil {
-			shapeID = child.Picture.NonVisualPictureProperties.CommonNonVisualProperties.ID
-		}
-		id := childHyperlinkID(child)
-		hasLink := id != ""
-		switch linkType {
-		case LinkTypeExternal:
-			if hasLink && relType(id) == SourceRelationshipHyperlink {
-				ids = append(ids, shapeID)
-			}
-		case LinkTypeLocation:
-			if hasLink && relType(id) == SourceRelationshipSlide {
-				ids = append(ids, shapeID)
-			}
-		case LinkTypeNone:
-			if !hasLink {
-				ids = append(ids, shapeID)
-			}
-		default:
-			if hasLink {
-				ids = append(ids, shapeID)
-			}
-		}
-	}
-
-	return ids, nil
+	return f.shapeTreeHyperlinkIDs(slide.CommonSlideData.ShapeTree.Children, f.getSlideRelsPath(slidePath), linkType), nil
 }
 
 // shapeIDMatch reports whether the given shape or picture (or both are nil)
@@ -312,10 +239,19 @@ func shapeIDMatchPicture(pic *decodePicture, shapeID int) bool {
 // target is reused.
 func (f *File) shapeHyperlinkRelationship(slideID int, target string) (*Hyperlink, error) {
 	slidePath, _ := f.getSlideXMLPath(slideID)
-	// the hyperlink element references the relationship (r:id), so the slide
+
+	return f.partHyperlinkRelationship(slidePath, f.getSlideRelsPath(slidePath), target), nil
+}
+
+// partHyperlinkRelationship provides a function to add the hyperlink
+// relationship to the rels part of the given part (the slide, the slide
+// master or the slide layout) and returns the hyperlink element with the
+// relationship id. An existing hyperlink relationship with the same target
+// is reused.
+func (f *File) partHyperlinkRelationship(partPath, relsPath, target string) *Hyperlink {
+	// the hyperlink element references the relationship (r:id), so the part
 	// root element must declare the relationships namespace
-	f.addNameSpaces(slidePath, SourceRelationship)
-	relsPath := f.getSlideRelsPath(slidePath)
+	f.addNameSpaces(partPath, SourceRelationship)
 	rels, _ := f.relsReader(relsPath)
 	rID := 0
 	if rels != nil {
@@ -333,7 +269,7 @@ func (f *File) shapeHyperlinkRelationship(slideID int, target string) (*Hyperlin
 		rID = f.addRels(relsPath, SourceRelationshipHyperlink, target, "External")
 	}
 
-	return &Hyperlink{ID: "rId" + strconv.Itoa(rID)}, nil
+	return &Hyperlink{ID: "rId" + strconv.Itoa(rID)}
 }
 
 // actionSlideJump is the action of the internal hyperlink to the slide of
@@ -352,19 +288,34 @@ func (f *File) shapeLocationRelationship(slideID int, link string) (*Hyperlink, 
 	if err != nil {
 		return nil, ErrLinkTargetInvalid{Target: link}
 	}
+	slidePath, _ := f.getSlideXMLPath(slideID)
+
+	return f.partLocationRelationship(slidePath, f.getSlideRelsPath(slidePath), targetSlideID)
+}
+
+// partLocationRelationship provides a function to add the relationship to
+// the target slide of the internal hyperlink to the rels part of the given
+// part (the slide, the slide master or the slide layout) and returns the
+// hyperlink element with the relationship id and the slide jump action. The
+// target of the relationship is the relative path of the target slide part
+// (the part name for the slide, the "../slides/slideN.xml" path for the
+// slide master and the slide layout). An existing relationship with the same
+// target is reused.
+func (f *File) partLocationRelationship(partPath, relsPath string, targetSlideID int) (*Hyperlink, error) {
 	targetPath, ok := f.getSlideXMLPath(targetSlideID)
 	if !ok {
 		return nil, ErrSlideNotExist{SlideID: targetSlideID}
 	}
 
-	slidePath, _ := f.getSlideXMLPath(slideID)
-	// the hyperlink element references the relationship (r:id), so the slide
+	// the hyperlink element references the relationship (r:id), so the part
 	// root element must declare the relationships namespace
-	f.addNameSpaces(slidePath, SourceRelationship)
-	relsPath := f.getSlideRelsPath(slidePath)
-	// the slides are in the same directory, so the target of the
-	// relationship is the part name of the target slide
-	target := filepath.Base(targetPath)
+	f.addNameSpaces(partPath, SourceRelationship)
+	// the target of the relationship is the path of the target slide part,
+	// relative to the directory of the part
+	target, err := filepath.Rel(filepath.ToSlash(filepath.Dir(partPath)), targetPath)
+	if err != nil {
+		return nil, err
+	}
 	rels, _ := f.relsReader(relsPath)
 	rID := 0
 	if rels != nil {
@@ -433,19 +384,19 @@ func clearShapeRunHyperlinks(shape *decodeShape) {
 	}
 }
 
-// removeUnusedLinkRels provides a function to remove the hyperlink
-// relationships (the URL links) and the relationships to the slides (the
-// internal links) that are not used by any shape of the slide from the slide
-// rels part.
-func (f *File) removeUnusedLinkRels(slide *decodeSlide, slidePath string) {
+// shapeTreeUsedLinkIDs provides a function to get the ids of the hyperlink
+// relationships (the URLs links) and the relationships to the slides (the
+// internal links) that are used by the shapes, the pictures and the
+// connectors of the shape tree.
+func shapeTreeUsedLinkIDs(children []decodeShapeTreeChild) map[string]bool {
 	used := map[string]bool{}
 	mark := func(id string) {
 		if id != "" {
 			used[id] = true
 		}
 	}
-	for i := range slide.CommonSlideData.ShapeTree.Children {
-		child := &slide.CommonSlideData.ShapeTree.Children[i]
+	for i := range children {
+		child := &children[i]
 		markChild := func(cnv *decodeCommonNonVisualProperties) {
 			if cnv == nil {
 				return
@@ -493,7 +444,15 @@ func (f *File) removeUnusedLinkRels(slide *decodeSlide, slidePath string) {
 		}
 	}
 
-	rels, _ := f.relsReader(f.getSlideRelsPath(slidePath))
+	return used
+}
+
+// removeUnusedLinkRels provides a function to remove the hyperlink
+// relationships (the URL links) and the relationships to the slides (the
+// internal links) that are not used by any shape of the part from the rels
+// part of the given part (the slide, the slide master or the slide layout).
+func (f *File) removeUnusedLinkRels(partPath string, used map[string]bool) {
+	rels, _ := f.relsReader(f.getSlideRelsPath(partPath))
 	if rels == nil {
 		return
 	}
@@ -506,6 +465,99 @@ func (f *File) removeUnusedLinkRels(slide *decodeSlide, slidePath string) {
 			rels.Relationships = append(rels.Relationships[:idx], rels.Relationships[idx+1:]...)
 		}
 	}
+}
+
+// partHyperlinkTarget provides a function to get the target of the shape
+// hyperlink by the relationship id in the rels part of the given part (the
+// slide, the slide master or the slide layout): the target of the hyperlink
+// relationship for the URL links (LinkTypeExternal) and the id of the target
+// slide for the internal links (LinkTypeLocation). It returns false and an
+// empty target when the relationship is not found.
+func (f *File) partHyperlinkTarget(partPath, relsPath, rID string) (bool, string, error) {
+	rels, _ := f.relsReader(relsPath)
+	if rels == nil {
+		return false, "", nil
+	}
+	rels.mu.Lock()
+	defer rels.mu.Unlock()
+	for _, rel := range rels.Relationships {
+		if rel.ID == rID {
+			if rel.Type == SourceRelationshipSlide {
+				// the internal link: the address is the id of the target slide
+				if target := f.slideIDByPart(resolvePartPath(partPath, rel.Target)); target != 0 {
+					return true, strconv.Itoa(target), nil
+				}
+			}
+
+			return true, rel.Target, nil
+		}
+	}
+
+	return false, "", nil
+}
+
+// shapeTreeHyperlinkIDs provides a function to get the shape ids that contain
+// hyperlinks in the shape tree (the slide, the slide master or the slide
+// layout part). The linkType filters the links: LinkTypeExternal for the URL
+// links, LinkTypeLocation for the internal links to the parts of the
+// presentation and LinkTypeNone for the shapes without hyperlinks. When the
+// linkType is empty, all the shapes with hyperlinks are returned.
+func (f *File) shapeTreeHyperlinkIDs(children []decodeShapeTreeChild, relsPath string, linkType LinkType) []int {
+	var ids []int
+	rels, _ := f.relsReader(relsPath)
+	// relType returns the type of the relationship of the hyperlink of the
+	// shape (the type "hyperlink" for the URL links and the type "slide" for
+	// the internal links) or an empty type when the shape has no hyperlink
+	relType := func(rID string) string {
+		if rID == "" || rels == nil {
+			return ""
+		}
+
+		rels.mu.Lock()
+		defer rels.mu.Unlock()
+		for _, rel := range rels.Relationships {
+			if rel.ID == rID {
+				return rel.Type
+			}
+		}
+
+		return ""
+	}
+
+	for i := range children {
+		child := &children[i]
+		shapeID := 0
+		if child.Shape != nil && child.Shape.NonVisualShapeProperties != nil &&
+			child.Shape.NonVisualShapeProperties.CommonNonVisualProperties != nil {
+			shapeID = child.Shape.NonVisualShapeProperties.CommonNonVisualProperties.ID
+		}
+		if child.Picture != nil && child.Picture.NonVisualPictureProperties != nil &&
+			child.Picture.NonVisualPictureProperties.CommonNonVisualProperties != nil {
+			shapeID = child.Picture.NonVisualPictureProperties.CommonNonVisualProperties.ID
+		}
+		id := childHyperlinkID(child)
+		hasLink := id != ""
+		switch linkType {
+		case LinkTypeExternal:
+			if hasLink && relType(id) == SourceRelationshipHyperlink {
+				ids = append(ids, shapeID)
+			}
+		case LinkTypeLocation:
+			if hasLink && relType(id) == SourceRelationshipSlide {
+				ids = append(ids, shapeID)
+			}
+		case LinkTypeNone:
+			if !hasLink {
+				ids = append(ids, shapeID)
+			}
+		default:
+			if hasLink {
+				ids = append(ids, shapeID)
+			}
+		}
+	}
+
+	return ids
 }
 
 // shapeHyperlinkID provides a function to get the id of the hyperlink

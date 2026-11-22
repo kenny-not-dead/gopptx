@@ -61,12 +61,12 @@ type slideMasterPart struct {
 	XMLNSP15          string              `xml:"xmlns:p15,attr"`
 	XMLNSMC           string              `xml:"xmlns:mc,attr"`
 	CommonSlideData   SlideData           `xml:"p:cSld"`
-	ColorMap          *decodeColorMap     `xml:"p:clrMap"`
+	ColorMap          *DecodeColorMap     `xml:"p:clrMap"`
 	SlideLayoutIDList *innerXML           `xml:"p:sldLayoutIdLst"`
 	Transition        *innerXML           `xml:"p:transition"`
 	Timing            *innerXML           `xml:"p:timing"`
 	HeaderFooter      *decodeHeaderFooter `xml:"p:hf"`
-	TextStyles        *innerXML           `xml:"p:txStyles"`
+	TextStyles        *textStylesPart     `xml:"p:txStyles"`
 	ExtLst            *innerXML           `xml:"p:extLst"`
 }
 
@@ -538,6 +538,32 @@ type SpacingChange struct {
 	SpacingPts     *SpacingPts     `xml:"a:spcPts,omitempty"`
 }
 
+// textStyle defines the titleStyle, the bodyStyle or the otherStyle element
+// of the text styles of the slide master part (the p:txStyles element): the
+// paragraph properties of the text levels of the style (the a:defPPr and
+// the a:lvl1pPr–a:lvl9pPr elements).
+type textStyle struct {
+	DefaultParagraphProperties *ParagraphProperties `xml:"a:defPPr,omitempty"`
+	Lvl1                       *ParagraphProperties `xml:"a:lvl1pPr,omitempty"`
+	Lvl2                       *ParagraphProperties `xml:"a:lvl2pPr,omitempty"`
+	Lvl3                       *ParagraphProperties `xml:"a:lvl3pPr,omitempty"`
+	Lvl4                       *ParagraphProperties `xml:"a:lvl4pPr,omitempty"`
+	Lvl5                       *ParagraphProperties `xml:"a:lvl5pPr,omitempty"`
+	Lvl6                       *ParagraphProperties `xml:"a:lvl6pPr,omitempty"`
+	Lvl7                       *ParagraphProperties `xml:"a:lvl7pPr,omitempty"`
+	Lvl8                       *ParagraphProperties `xml:"a:lvl8pPr,omitempty"`
+	Lvl9                       *ParagraphProperties `xml:"a:lvl9pPr,omitempty"`
+}
+
+// textStylesPart defines the txStyles element of the slide master part (the
+// text styles of the master: the title style, the body style and the other
+// style).
+type textStylesPart struct {
+	TitleStyle *textStyle `xml:"p:titleStyle,omitempty"`
+	BodyStyle  *textStyle `xml:"p:bodyStyle,omitempty"`
+	OtherStyle *textStyle `xml:"p:otherStyle,omitempty"`
+}
+
 type Runs struct {
 	RunProperties *RunProperties `xml:"a:rPr,omitempty"`
 	Text          string         `xml:"a:t"`
@@ -590,12 +616,12 @@ type decodeSlideLayout struct {
 type decodeSlideMaster struct {
 	XMLName           xml.Name            `xml:"sldMaster"`
 	CommonSlideData   decodeSlideData     `xml:"cSld"`
-	ColorMap          *decodeColorMap     `xml:"clrMap"`
+	ColorMap          *DecodeColorMap     `xml:"clrMap"`
 	SlideLayoutIDList *innerXML           `xml:"sldLayoutIdLst"`
 	Transition        *innerXML           `xml:"transition"`
 	Timing            *innerXML           `xml:"timing"`
 	HeaderFooter      *decodeHeaderFooter `xml:"hf"`
-	TextStyles        *innerXML           `xml:"txStyles"`
+	TextStyles        *DecodeTextStyles   `xml:"txStyles"`
 	ExtLst            *innerXML           `xml:"extLst"`
 }
 
@@ -604,9 +630,12 @@ type decodeClrMapOverride struct {
 	MasterClrMapping *MasterColorMapping `xml:"masterClrMapping,omitempty"`
 }
 
-// decodeColorMap directly maps the clrMap element (CT_ColorMapping) of the
-// slide master: the color mapping of the master (the attributes only).
-type decodeColorMap struct {
+// DecodeColorMap directly maps the clrMap element (CT_ColorMapping) of the
+// slide master: the color mapping of the master (the attributes only). The
+// values of the color map are the names of the theme scheme colors (the
+// "dk1", the "lt1", the "accent1"–"accent6", the "hlink" and the "folHlink"
+// names of the theme color scheme).
+type DecodeColorMap struct {
 	BG1      string `xml:"bg1,attr"`
 	BG2      string `xml:"bg2,attr"`
 	TX1      string `xml:"tx1,attr"`
@@ -621,7 +650,7 @@ type decodeColorMap struct {
 	FolHLink string `xml:"folHlink,attr"`
 }
 
-// decodeHeaderFooter directly maps the hf element (CT_HeaderFooter) of the
+// DecodeHeaderFooter directly maps the hf element (CT_HeaderFooter) of the
 // slide master: the header footer options (the attributes only). The
 // attributes are optional, so the absent attribute is omitted on the
 // round trip (the omitempty tag).
@@ -629,6 +658,34 @@ type decodeHeaderFooter struct {
 	Date   string `xml:"dt,attr,omitempty"`
 	Footer string `xml:"ftr,attr,omitempty"`
 	Header string `xml:"hdr,attr,omitempty"`
+}
+
+// DecodeTextStyle directly maps the titleStyle, the bodyStyle or the
+// otherStyle element of the slide master text styles (p:txStyles): the
+// paragraph properties of the text levels of the style (the a:defPPr and
+// the a:lvl1pPr–a:lvl9pPr elements, the CT_TextParagraphProperties).
+type DecodeTextStyle struct {
+	DefaultParagraphProperties *DecodeParagraphProperties `xml:"defPPr,omitempty"`
+	Lvl1                       *DecodeParagraphProperties `xml:"lvl1pPr,omitempty"`
+	Lvl2                       *DecodeParagraphProperties `xml:"lvl2pPr,omitempty"`
+	Lvl3                       *DecodeParagraphProperties `xml:"lvl3pPr,omitempty"`
+	Lvl4                       *DecodeParagraphProperties `xml:"lvl4pPr,omitempty"`
+	Lvl5                       *DecodeParagraphProperties `xml:"lvl5pPr,omitempty"`
+	Lvl6                       *DecodeParagraphProperties `xml:"lvl6pPr,omitempty"`
+	Lvl7                       *DecodeParagraphProperties `xml:"lvl7pPr,omitempty"`
+	Lvl8                       *DecodeParagraphProperties `xml:"lvl8pPr,omitempty"`
+	Lvl9                       *DecodeParagraphProperties `xml:"lvl9pPr,omitempty"`
+}
+
+// DecodeTextStyles directly maps the txStyles element (CT_TextListStyle) of
+// the slide master: the text styles of the master (the title style, the
+// body style and the other style). The text styles of the master are the
+// default paragraph properties of the title, the body and the other text
+// of the slides of the master (the styles are inherited by the slides).
+type DecodeTextStyles struct {
+	TitleStyle *DecodeTextStyle `xml:"titleStyle,omitempty"`
+	BodyStyle  *DecodeTextStyle `xml:"bodyStyle,omitempty"`
+	OtherStyle *DecodeTextStyle `xml:"otherStyle,omitempty"`
 }
 
 type decodeSlideData struct {

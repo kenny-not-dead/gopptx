@@ -516,6 +516,18 @@ func newHyperlink(dh *DecodeHyperlink) *Hyperlink {
 	}
 }
 
+// newNonVisualProperties provides a function to convert the decode
+// non-visual properties (the nvPr element) to the non-visual properties.
+func newNonVisualProperties(dnvp *decodeNonVisualProperties) *NonVisualProperties {
+	if dnvp == nil {
+		return nil
+	}
+
+	return &NonVisualProperties{
+		Ph: dnvp.Ph,
+	}
+}
+
 // newCommonNonVisualProperties provides a function to convert the decode
 // common non-visual properties to the common non-visual properties.
 func newCommonNonVisualProperties(
@@ -566,7 +578,7 @@ func newNonVisualGroupShapeProperties(
 	return &NonVisualGroupShapeProperties{
 		CommonNonVisualProperties:           newCommonNonVisualProperties(nvgsp.CommonNonVisualProperties),
 		CommonNonVisualGroupShapeProperties: nvgsp.CommonNonVisualGroupShapeProperties,
-		NonVisualProperties:                 (*NonVisualProperties)(nvgsp.NonVisualProperties),
+		NonVisualProperties:                 newNonVisualProperties(nvgsp.NonVisualProperties),
 	}
 }
 
@@ -779,6 +791,39 @@ func newParagraphProperties(dpp *DecodeParagraphProperties) *ParagraphProperties
 	}
 }
 
+// newTextStyles provides a function to convert the decode text styles of the
+// slide master to the text styles part of the slide master part.
+func newTextStyles(dts *DecodeTextStyles) *textStylesPart {
+	if dts == nil {
+		return nil
+	}
+
+	newTextStyle := func(dst *DecodeTextStyle) *textStyle {
+		if dst == nil {
+			return nil
+		}
+
+		return &textStyle{
+			DefaultParagraphProperties: newParagraphProperties(dst.DefaultParagraphProperties),
+			Lvl1:                       newParagraphProperties(dst.Lvl1),
+			Lvl2:                       newParagraphProperties(dst.Lvl2),
+			Lvl3:                       newParagraphProperties(dst.Lvl3),
+			Lvl4:                       newParagraphProperties(dst.Lvl4),
+			Lvl5:                       newParagraphProperties(dst.Lvl5),
+			Lvl6:                       newParagraphProperties(dst.Lvl6),
+			Lvl7:                       newParagraphProperties(dst.Lvl7),
+			Lvl8:                       newParagraphProperties(dst.Lvl8),
+			Lvl9:                       newParagraphProperties(dst.Lvl9),
+		}
+	}
+
+	return &textStylesPart{
+		TitleStyle: newTextStyle(dts.TitleStyle),
+		BodyStyle:  newTextStyle(dts.BodyStyle),
+		OtherStyle: newTextStyle(dts.OtherStyle),
+	}
+}
+
 // newTextBody provides a function to convert the decode text body to the text
 // body.
 func newTextBody(dt *DecodeTextBody) *TextBody {
@@ -857,9 +902,7 @@ func newNonVisualShapeProperties(dnsp *decodeNonVisualShapeProperties) *NonVisua
 
 	var nonVisualProperties *NonVisualProperties
 	if dnsp.NonVisualProperties != nil {
-		nonVisualProperties = &NonVisualProperties{
-			Ph: dnsp.NonVisualProperties.Ph,
-		}
+		nonVisualProperties = newNonVisualProperties(dnsp.NonVisualProperties)
 	}
 
 	return &NonVisualShapeProperties{
@@ -885,7 +928,7 @@ func newPicture(dp decodePicture) Picture {
 		pic.NonVisualPictureProperties = &NonVisualPictureProperties{
 			CommonNonVisualProperties:        newCommonNonVisualProperties(dp.NonVisualPictureProperties.CommonNonVisualProperties),
 			CommonNonVisualPictureProperties: newCommonNonVisualPictureProperties(dp.NonVisualPictureProperties.CommonNonVisualPictureProperties),
-			NonVisualProperties:              (*NonVisualProperties)(dp.NonVisualPictureProperties.NonVisualProperties),
+			NonVisualProperties:              newNonVisualProperties(dp.NonVisualPictureProperties.NonVisualProperties),
 		}
 	}
 	if dp.BlipFill != nil {
@@ -955,7 +998,7 @@ func newConnector(dc decodeConnector) Connector {
 		conn.NonVisualConnectorProperties = &NonVisualConnectorProperties{
 			CommonNonVisualProperties:          newCommonNonVisualProperties(dc.NonVisualConnectorProperties.CommonNonVisualProperties),
 			CommonNonVisualConnectorProperties: dc.NonVisualConnectorProperties.CommonNonVisualConnectorProperties,
-			NonVisualProperties:                (*NonVisualProperties)(dc.NonVisualConnectorProperties.NonVisualProperties),
+			NonVisualProperties:                newNonVisualProperties(dc.NonVisualConnectorProperties.NonVisualProperties),
 		}
 	}
 	conn.ShapeProperties = newShapeProperties(dc.ShapeProperties)
