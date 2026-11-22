@@ -489,6 +489,9 @@ const (
 	// ShapeOrderGraphicFrame is the kind of the p:graphicFrame child of the
 	// shape tree (the table, the chart).
 	ShapeOrderGraphicFrame = "graphicFrame"
+	// ShapeOrderGrpSp is the kind of the p:grpSp child of the shape tree
+	// (the group shape).
+	ShapeOrderGrpSp = "grpSp"
 )
 
 // GetShapeOrder provides a function to get the order (the z-order) of the
@@ -578,9 +581,40 @@ func shapeOrderOf(child *decodeShapeTreeChild) (ShapeOrder, bool) {
 			Kind: ShapeOrderGraphicFrame,
 			ID:   child.GraphicFrame.NonVisualGraphicFrameProperties.CommonNonVisualProperties.ID,
 		}, true
+	case child.GroupShape != nil:
+		if child.GroupShape.NonVisualGroupShapeProperties == nil ||
+			child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties == nil {
+			return ShapeOrder{}, false
+		}
+
+		return ShapeOrder{
+			Kind: ShapeOrderGrpSp,
+			ID:   child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties.ID,
+		}, true
 	}
 
 	return ShapeOrder{}, false
+}
+
+// GetGroups provides a function to get the group shapes (p:grpSp) by given
+// slide id, in the document order of the shape tree of the slide. The groups
+// (including the nested groups) are returned by value: edits of the returned
+// slice do not affect the slide.
+func (f *File) GetGroups(slideID int) ([]GroupShape, error) {
+	slide, err := f.slideReader(slideID)
+	if err != nil {
+		return nil, err
+	}
+
+	var groups []GroupShape
+	for i := range slide.CommonSlideData.ShapeTree.Children {
+		if child := slide.CommonSlideData.ShapeTree.Children[i].GroupShape; child != nil {
+			group := newGroupShape(child)
+			groups = append(groups, *group)
+		}
+	}
+
+	return groups, nil
 }
 
 // CreateShape provides the function to create  a new shape by given slide id and
@@ -715,12 +749,14 @@ func (f *File) DeleteSlide(slideID int) error {
 		}
 
 		target := f.deleteSlideFromPresentationRels(v.RelationshipID)
-		dir := filepath.Dir(target)
+		dir := filepath.ToSlash(filepath.Dir(target))
 		base := filepath.Base(target)
 
-		// Update [Content_Types].xml
+		// Update [Content_Types].xml (the part name always uses forward
+		// slashes, on all platforms)
 		_ = f.removeContentTypesPart(ContentTypeSlideML, target)
-		_ = f.removeContentTypesPart(ContentTypeRelationships, filepath.Join(dir, "_rels", base+".rels"))
+		_ = f.removeContentTypesPart(ContentTypeRelationships,
+			filepath.ToSlash(filepath.Join(dir, "_rels", base+".rels")))
 
 		// delete the notes slide of the slide (the part, the rels part and
 		// the content types; the notesSlide relationship of the slide is

@@ -35,12 +35,3 @@ jobs:
 
       - name: Test
         run: env GO111MODULE=on go test -v -timeout 10m -race ./... -coverprofile='coverage.txt' -covermode=atomic
-
-      - name: Codecov
-        uses: codecov/codecov-action@v5
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          files: coverage.txt
-          flags: unittests
-          name: codecov-umbrella

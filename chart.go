@@ -606,7 +606,7 @@ func (f *File) removeContentTypeIfUnused(partPath string) {
 	if inUse {
 		return
 	}
-	
+
 	for i, d := range content.Defaults {
 		if !strings.EqualFold(d.Extension, ext) {
 			continue

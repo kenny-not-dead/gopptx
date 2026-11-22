@@ -99,6 +99,7 @@ const (
 	shapeTreeChildPic
 	shapeTreeChildCxnSp
 	shapeTreeChildGraphicFrame
+	shapeTreeChildGroupShape
 )
 
 // shapeTreeOrderEntry is one entry of the document order of the shape tree
@@ -116,9 +117,10 @@ type ShapeTree struct {
 	Picture                       []Picture                      `xml:"p:pic"`
 	Connector                     []Connector                    `xml:"p:cxnSp"`
 	GraphicFrame                  []GraphicFrame                 `xml:"p:graphicFrame"`
+	GroupShape                    []GroupShape                   `xml:"p:grpSp"`
 	// shapeOrder is the document order of the children (sp/pic/cxnSp/
-	// graphicFrame) of the shape tree, the z-order of the shapes; when it
-	// is empty (the shape tree is built without the document order) the
+	// graphicFrame/grpSp) of the shape tree, the z-order of the shapes; when
+	// it is empty (the shape tree is built without the document order) the
 	// children are emitted as blocks in the struct field order
 	shapeOrder []shapeTreeOrderEntry
 }
@@ -128,7 +130,31 @@ type ShapeTree struct {
 // element names are written with the literal prefixes, the same way the
 // struct tags of the slide do it.
 func (st ShapeTree) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	start.Name = xml.Name{Local: "p:spTree"}
+	return st.marshalShapeTree(e, "p:spTree")
+}
+
+// GroupShape defines a group shape (p:grpSp) in the shape tree of the slide:
+// the content model is the same as the shape tree (the non-visual group
+// shape properties, the group shape properties and the children of the
+// group: the shapes, the pictures, the connectors, the graphic frames and
+// the nested groups, in the document order).
+type GroupShape struct {
+	ShapeTree
+}
+
+// MarshalXML writes the group shape with the p:grpSp element name (the
+// content is the same as the shape tree).
+func (g GroupShape) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	return g.ShapeTree.marshalShapeTree(e, "p:grpSp")
+}
+
+// marshalShapeTree writes the shape tree (or the group shape, with the
+// p:grpSp element name), keeping the document order of the children, so the
+// z-order of the shapes is preserved on save. The element names are written
+// with the literal prefixes, the same way the struct tags of the slide do
+// it.
+func (st ShapeTree) marshalShapeTree(e *xml.Encoder, name string) error {
+	start := xml.StartElement{Name: xml.Name{Local: name}}
 	if err := e.EncodeToken(start); err != nil {
 		return err
 	}
@@ -176,6 +202,11 @@ func (st ShapeTree) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 				return err
 			}
 		}
+		for i := range st.GroupShape {
+			if err := emit("p:grpSp", &st.GroupShape[i]); err != nil {
+				return err
+			}
+		}
 	} else {
 		for i := range st.shapeOrder {
 			entry := &st.shapeOrder[i]
@@ -194,6 +225,10 @@ func (st ShapeTree) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 				}
 			case shapeTreeChildGraphicFrame:
 				if err := emit("p:graphicFrame", &st.GraphicFrame[entry.index]); err != nil {
+					return err
+				}
+			case shapeTreeChildGroupShape:
+				if err := emit("p:grpSp", &st.GroupShape[entry.index]); err != nil {
 					return err
 				}
 			}
@@ -714,6 +749,15 @@ type decodeShapeTreeChild struct {
 	Picture      *decodePicture
 	Connector    *decodeConnector
 	GraphicFrame *decodeGraphicFrame
+	GroupShape   *decodeGroupShape
+}
+
+// decodeGroupShape directly maps the grpSp element (the group shape) of the
+// shape tree: the content model is the same as the shape tree (the
+// non-visual group shape properties, the group shape properties and the
+// children of the group, in the document order, the groups can be nested).
+type decodeGroupShape struct {
+	decodeShapeTree
 }
 
 type decodeShapeTree struct {
@@ -771,9 +815,15 @@ func (dst *decodeShapeTree) UnmarshalXML(d *xml.Decoder, start xml.StartElement)
 					return err
 				}
 				dst.Children = append(dst.Children, decodeShapeTreeChild{GraphicFrame: gf})
+			case "grpSp":
+				g := new(decodeGroupShape)
+				if err := d.DecodeElement(g, &t); err != nil {
+					return err
+				}
+				dst.Children = append(dst.Children, decodeShapeTreeChild{GroupShape: g})
 			default:
-				// unknown child of the shape tree (grpSp, ...): it is not
-				// modeled and is not preserved, the same as before
+				// unknown child of the shape tree (custDataLst, ...): it is
+				// not modeled and is not preserved, the same as before
 				if err := d.Skip(); err != nil {
 					return err
 				}

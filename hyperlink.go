@@ -52,10 +52,12 @@ const (
 // the end paragraph run properties of the first paragraph when the shape
 // text has no runs), so the whole shape text becomes the link; for a picture
 // the hyperlink is set to the common non-visual properties of the picture,
-// so the whole picture becomes the link. The hyperlink element (a:hlinkClick)
-// of the run properties and of the common non-visual properties is preserved
-// on the round trip, so the links of the loaded presentation are not lost on
-// save.
+// so the whole picture becomes the link. The shape (or the picture) is
+// searched in the shape tree recursively, the shapes and the pictures inside
+// the group shapes are found by their ids, the same way. The hyperlink
+// element (a:hlinkClick) of the run properties and of the common non-visual
+// properties is preserved on the round trip, so the links of the loaded
+// presentation are not lost on save.
 //
 //	tooltip := "gopptx on GitHub"
 //	if err := f.SetShapeHyperLink(slideID, shapeID,
@@ -75,23 +77,9 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 		return err
 	}
 
-	var (
-		shape *decodeShape
-		pic   *decodePicture
-	)
-	for i := range slide.CommonSlideData.ShapeTree.Children {
-		child := &slide.CommonSlideData.ShapeTree.Children[i]
-		if shapeIDMatch(child.Shape, shapeID) {
-			shape = child.Shape
-			break
-		}
-		if shapeIDMatchPicture(child.Picture, shapeID) {
-			pic = child.Picture
-			break
-		}
-	}
+	shape, pic, grp := findShapeInTree(slide.CommonSlideData.ShapeTree.Children, shapeID)
 
-	if shape == nil && pic == nil {
+	if shape == nil && pic == nil && grp == nil {
 		return ErrShapeNotExist{shapeID}
 	}
 
@@ -108,6 +96,10 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 
 		if pic != nil {
 			pic.NonVisualPictureProperties.CommonNonVisualProperties.HyperlinkClick = nil
+		}
+
+		if grp != nil {
+			grp.NonVisualGroupShapeProperties.CommonNonVisualProperties.HyperlinkClick = nil
 		}
 
 		slidePath, _ := f.getSlideXMLPath(slideID)
@@ -127,10 +119,17 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 			hlink.Tooltip = *o.Tooltip
 		}
 	}
-	if shape != nil {
+	switch {
+	case shape != nil:
 		setShapeRunHyperlinks(shape, hlink)
-	} else {
+	case pic != nil:
 		pic.NonVisualPictureProperties.CommonNonVisualProperties.HyperlinkClick = &DecodeHyperlink{
+			ID:      hlink.ID,
+			Action:  hlink.Action,
+			Tooltip: hlink.Tooltip,
+		}
+	default:
+		grp.NonVisualGroupShapeProperties.CommonNonVisualProperties.HyperlinkClick = &DecodeHyperlink{
 			ID:      hlink.ID,
 			Action:  hlink.Action,
 			Tooltip: hlink.Tooltip,
@@ -145,6 +144,9 @@ func (f *File) SetShapeHyperLink(slideID, shapeID int, link string, linkType Lin
 // hyperlink, otherwise it returns false and an empty link address: the
 // target of the hyperlink relationship for the URL links (LinkTypeExternal)
 // and the id of the target slide for the internal links (LinkTypeLocation).
+// The shape (or the picture) is searched in the shape tree recursively, the
+// shapes and the pictures inside the group shapes are found by their ids,
+// the same way.
 //
 // For example, get the hyperlink of the shape with the id 7 on the slide
 // with the id 256:
@@ -156,30 +158,23 @@ func (f *File) GetShapeHyperLink(slideID, shapeID int) (bool, string, error) {
 		return false, "", err
 	}
 
-	var (
-		shape *decodeShape
-		pic   *decodePicture
-	)
-	for i := range slide.CommonSlideData.ShapeTree.Children {
-		child := &slide.CommonSlideData.ShapeTree.Children[i]
-		if shapeIDMatch(child.Shape, shapeID) {
-			shape = child.Shape
-			break
-		}
+	shape, pic, grp := findShapeInTree(slide.CommonSlideData.ShapeTree.Children, shapeID)
 
-		if shapeIDMatchPicture(child.Picture, shapeID) {
-			pic = child.Picture
-			break
-		}
-	}
-
-	if shape == nil && pic == nil {
+	if shape == nil && pic == nil && grp == nil {
 		return false, "", ErrShapeNotExist{shapeID}
 	}
 
-	id, err := shapeHyperlinkID(shape, pic)
-	if err != nil {
-		return false, "", err
+	var id string
+	if grp != nil {
+		if cnv := grp.NonVisualGroupShapeProperties.CommonNonVisualProperties; cnv != nil && cnv.HyperlinkClick != nil {
+			id = cnv.HyperlinkClick.ID
+		}
+	} else {
+		var err error
+		id, err = shapeHyperlinkID(shape, pic)
+		if err != nil {
+			return false, "", err
+		}
 	}
 
 	if id == "" {
@@ -191,11 +186,12 @@ func (f *File) GetShapeHyperLink(slideID, shapeID int) (bool, string, error) {
 }
 
 // GetShapeHyperLinks returns the shape ids that contain hyperlinks in the
-// given slide. The optional parameter linkType is used to filter the links:
-// LinkTypeExternal for the URL links, LinkTypeLocation for the internal
-// links to the parts of the presentation and LinkTypeNone for the shapes
-// without hyperlinks. When linkType is empty, all the shapes with
-// hyperlinks are returned.
+// given slide. The shapes and the pictures inside the group shapes are
+// included (the group shapes are searched recursively). The optional
+// parameter linkType is used to filter the links: LinkTypeExternal for the
+// URL links, LinkTypeLocation for the internal links to the parts of the
+// presentation and LinkTypeNone for the shapes without hyperlinks. When
+// linkType is empty, all the shapes with hyperlinks are returned.
 func (f *File) GetShapeHyperLinks(slideID int, linkType LinkType) ([]int, error) {
 	var ids []int
 	slide, err := f.slideReader(slideID)
@@ -211,6 +207,34 @@ func (f *File) GetShapeHyperLinks(slideID int, linkType LinkType) ([]int, error)
 
 	slidePath, _ := f.getSlideXMLPath(slideID)
 	return f.shapeTreeHyperlinkIDs(slide.CommonSlideData.ShapeTree.Children, f.getSlideRelsPath(slidePath), linkType), nil
+}
+
+// findShapeInTree provides a function to find the shape, the picture or the
+// group shape by the given id in the shape tree, recursing into the group
+// shapes. It returns the found element (one of them is non-nil) or three nil
+// values when the element is not found.
+func findShapeInTree(children []decodeShapeTreeChild, shapeID int) (*decodeShape, *decodePicture, *decodeGroupShape) {
+	for i := range children {
+		child := &children[i]
+		if shapeIDMatch(child.Shape, shapeID) {
+			return child.Shape, nil, nil
+		}
+		if shapeIDMatchPicture(child.Picture, shapeID) {
+			return nil, child.Picture, nil
+		}
+		if child.GroupShape != nil && child.GroupShape.NonVisualGroupShapeProperties != nil &&
+			child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties != nil &&
+			child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties.ID == shapeID {
+			return nil, nil, child.GroupShape
+		}
+		if child.GroupShape != nil {
+			if shape, pic, grp := findShapeInTree(child.GroupShape.Children, shapeID); shape != nil || pic != nil || grp != nil {
+				return shape, pic, grp
+			}
+		}
+	}
+
+	return nil, nil, nil
 }
 
 // shapeIDMatch reports whether the given shape or picture (or both are nil)
@@ -311,11 +335,13 @@ func (f *File) partLocationRelationship(partPath, relsPath string, targetSlideID
 	// root element must declare the relationships namespace
 	f.addNameSpaces(partPath, SourceRelationship)
 	// the target of the relationship is the path of the target slide part,
-	// relative to the directory of the part
+	// relative to the directory of the part (the target of a relationship is
+	// a URI: it always uses forward slashes, on all platforms)
 	target, err := filepath.Rel(filepath.ToSlash(filepath.Dir(partPath)), targetPath)
 	if err != nil {
 		return nil, err
 	}
+	target = filepath.ToSlash(target)
 	rels, _ := f.relsReader(relsPath)
 	rID := 0
 	if rels != nil {
@@ -386,8 +412,8 @@ func clearShapeRunHyperlinks(shape *decodeShape) {
 
 // shapeTreeUsedLinkIDs provides a function to get the ids of the hyperlink
 // relationships (the URLs links) and the relationships to the slides (the
-// internal links) that are used by the shapes, the pictures and the
-// connectors of the shape tree.
+// internal links) that are used by the shapes, the pictures, the connectors
+// and the groups (the shapes of the groups, recursively) of the shape tree.
 func shapeTreeUsedLinkIDs(children []decodeShapeTreeChild) map[string]bool {
 	used := map[string]bool{}
 	mark := func(id string) {
@@ -441,6 +467,14 @@ func shapeTreeUsedLinkIDs(children []decodeShapeTreeChild) map[string]bool {
 		}
 		if child.Connector != nil && child.Connector.NonVisualConnectorProperties != nil {
 			markChild(child.Connector.NonVisualConnectorProperties.CommonNonVisualProperties)
+		}
+		if child.GroupShape != nil && child.GroupShape.NonVisualGroupShapeProperties != nil {
+			markChild(child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties)
+		}
+		if child.GroupShape != nil {
+			for id := range shapeTreeUsedLinkIDs(child.GroupShape.Children) {
+				used[id] = true
+			}
 		}
 	}
 
@@ -535,6 +569,10 @@ func (f *File) shapeTreeHyperlinkIDs(children []decodeShapeTreeChild, relsPath s
 			child.Picture.NonVisualPictureProperties.CommonNonVisualProperties != nil {
 			shapeID = child.Picture.NonVisualPictureProperties.CommonNonVisualProperties.ID
 		}
+		if child.GroupShape != nil && child.GroupShape.NonVisualGroupShapeProperties != nil &&
+			child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties != nil {
+			shapeID = child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties.ID
+		}
 		id := childHyperlinkID(child)
 		hasLink := id != ""
 		switch linkType {
@@ -554,6 +592,9 @@ func (f *File) shapeTreeHyperlinkIDs(children []decodeShapeTreeChild, relsPath s
 			if hasLink {
 				ids = append(ids, shapeID)
 			}
+		}
+		if child.GroupShape != nil {
+			ids = append(ids, f.shapeTreeHyperlinkIDs(child.GroupShape.Children, relsPath, linkType)...)
 		}
 	}
 
@@ -623,6 +664,13 @@ func childHyperlinkID(child *decodeShapeTreeChild) string {
 	if child.Shape != nil {
 		id, _ := shapeHyperlinkID(child.Shape, nil)
 		return id
+	}
+
+	if child.GroupShape != nil && child.GroupShape.NonVisualGroupShapeProperties != nil &&
+		child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties != nil {
+		if hlink := child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties.HyperlinkClick; hlink != nil {
+			return hlink.ID
+		}
 	}
 
 	return ""

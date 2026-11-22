@@ -78,11 +78,19 @@ func (cs *decodeSlideData) deleteShape(shapeID int) bool {
 
 // nextShapeID provides a function to get the next free id of the shape of the
 // shape tree of the common slide data: the max id of the children of the shape
-// tree (the shapes, the pictures and the connectors) plus one.
+// tree (the shapes, the pictures, the connectors and the groups, the shapes
+// of the groups are searched recursively, the ids must be unique in the whole
+// shape tree) plus one.
 func (cs *decodeSlideData) nextShapeID() int {
+	return nextShapeIDInTree(cs.ShapeTree.Children) + 1
+}
+
+// nextShapeIDInTree provides a function to get the max id of the children of
+// the shape tree, searching the group shapes recursively.
+func nextShapeIDInTree(children []decodeShapeTreeChild) int {
 	maxID := 0
-	for i := range cs.ShapeTree.Children {
-		child := &cs.ShapeTree.Children[i]
+	for i := range children {
+		child := &children[i]
 		var id int
 		switch {
 		case child.Shape != nil &&
@@ -97,13 +105,21 @@ func (cs *decodeSlideData) nextShapeID() int {
 			child.Connector.NonVisualConnectorProperties != nil &&
 			child.Connector.NonVisualConnectorProperties.CommonNonVisualProperties != nil:
 			id = child.Connector.NonVisualConnectorProperties.CommonNonVisualProperties.ID
+		case child.GroupShape != nil:
+			if child.GroupShape.NonVisualGroupShapeProperties != nil &&
+				child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties != nil {
+				id = child.GroupShape.NonVisualGroupShapeProperties.CommonNonVisualProperties.ID
+			}
+			if inner := nextShapeIDInTree(child.GroupShape.Children); inner > id {
+				id = inner
+			}
 		}
 		if id > maxID {
 			maxID = id
 		}
 	}
 
-	return maxID + 1
+	return maxID
 }
 
 // shapeTreeOrder returns the order (the z-order) of the children of the

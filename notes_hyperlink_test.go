@@ -178,6 +178,9 @@ func TestDeleteNotes(t *testing.T) {
 // is loaded by GetNotes and the file is saved.
 func TestSampleNotesRoundTrip(t *testing.T) {
 	src := sampleSourcePath()
+	if _, err := os.Stat(src); err != nil {
+		t.Skipf("sample presentation %s not found", src)
+	}
 	f, err := OpenFile(src)
 	if err != nil {
 		t.Fatal(err)
@@ -230,6 +233,9 @@ func TestSampleNotesRoundTrip(t *testing.T) {
 // part of the deleted slide from the package.
 func TestDeleteSlideRemovesNotes(t *testing.T) {
 	src := sampleSourcePath()
+	if _, err := os.Stat(src); err != nil {
+		t.Skipf("sample presentation %s not found", src)
+	}
 	f, err := OpenFile(src)
 	if err != nil {
 		t.Fatal(err)
@@ -524,7 +530,7 @@ func TestSetShapeHyperLinkPicture(t *testing.T) {
 	slideID := defaultXMLSlideID
 	link := "https://github.com/kenny-not-dead/gopptx"
 
-	image, err := os.ReadFile("test/image1.jpg")
+	image, err := os.ReadFile(filepath.Join("test", "images", "1.jpg"))
 	if err != nil {
 		t.Fatal(err)
 	}

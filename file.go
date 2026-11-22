@@ -516,6 +516,59 @@ func newHyperlink(dh *DecodeHyperlink) *Hyperlink {
 	}
 }
 
+// newGroupShape provides a function to convert the decode group shape (the
+// grpSp element) to the group shape: the children of the group (the shapes,
+// the pictures, the connectors, the graphic frames and the nested groups)
+// are converted in the document order, the groups can be nested.
+func newGroupShape(dg *decodeGroupShape) *GroupShape {
+	if dg == nil {
+		return nil
+	}
+
+	var (
+		shapes        []Shape
+		pictures      []Picture
+		connectors    []Connector
+		graphicFrames []GraphicFrame
+		groups        []GroupShape
+		order         []shapeTreeOrderEntry
+	)
+	for i := range dg.Children {
+		child := &dg.Children[i]
+		switch {
+		case child.Shape != nil:
+			shapes = append(shapes, newShape(*child.Shape))
+			order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildSp, index: len(shapes) - 1})
+		case child.Picture != nil:
+			pictures = append(pictures, newPicture(*child.Picture))
+			order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildPic, index: len(pictures) - 1})
+		case child.Connector != nil:
+			connectors = append(connectors, newConnector(*child.Connector))
+			order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildCxnSp, index: len(connectors) - 1})
+		case child.GraphicFrame != nil:
+			graphicFrames = append(graphicFrames, newGraphicFrame(*child.GraphicFrame))
+			order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildGraphicFrame, index: len(graphicFrames) - 1})
+		case child.GroupShape != nil:
+			group := newGroupShape(child.GroupShape)
+			groups = append(groups, *group)
+			order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildGroupShape, index: len(groups) - 1})
+		}
+	}
+
+	return &GroupShape{
+		ShapeTree: ShapeTree{
+			NonVisualGroupShapeProperties: newNonVisualGroupShapeProperties(dg.NonVisualGroupShapeProperties),
+			GroupShapeProperties:          newGroupShapeProperties(dg.GroupShapeProperties),
+			Shape:                         shapes,
+			Picture:                       pictures,
+			Connector:                     connectors,
+			GraphicFrame:                  graphicFrames,
+			GroupShape:                    groups,
+			shapeOrder:                    order,
+		},
+	}
+}
+
 // newNonVisualProperties provides a function to convert the decode
 // non-visual properties (the nvPr element) to the non-visual properties.
 func newNonVisualProperties(dnvp *decodeNonVisualProperties) *NonVisualProperties {
@@ -1037,15 +1090,16 @@ func (f *File) slideWriter() {
 
 			ds := slide.(*decodeSlide)
 
-			// the shapes, the pictures, the connectors and the graphic
-			// frames of the shape tree; the document order of the children
-			// (the z-order) is recorded in the order of the shape tree and
-			// is preserved on save
+			// the shapes, the pictures, the connectors, the graphic frames
+			// and the groups of the shape tree; the document order of the
+			// children (the z-order) is recorded in the order of the shape
+			// tree and is preserved on save
 			var (
 				shapes        []Shape
 				pictures      []Picture
 				connectors    []Connector
 				graphicFrames []GraphicFrame
+				groups        []GroupShape
 				order         []shapeTreeOrderEntry
 			)
 			for i := range ds.CommonSlideData.ShapeTree.Children {
@@ -1063,6 +1117,10 @@ func (f *File) slideWriter() {
 				case child.GraphicFrame != nil:
 					graphicFrames = append(graphicFrames, newGraphicFrame(*child.GraphicFrame))
 					order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildGraphicFrame, index: len(graphicFrames) - 1})
+				case child.GroupShape != nil:
+					group := newGroupShape(child.GroupShape)
+					groups = append(groups, *group)
+					order = append(order, shapeTreeOrderEntry{kind: shapeTreeChildGroupShape, index: len(groups) - 1})
 				}
 			}
 
@@ -1099,6 +1157,7 @@ func (f *File) slideWriter() {
 						Picture:                       pictures,
 						Connector:                     connectors,
 						GraphicFrame:                  graphicFrames,
+						GroupShape:                    groups,
 						shapeOrder:                    order,
 					},
 					ExtLst: newSlideDataExtLst(ds.CommonSlideData.ExtLst),

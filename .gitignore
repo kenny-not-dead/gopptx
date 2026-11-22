@@ -1,7 +1,6 @@
 example/
 
 test/Test*.pptx
-test/image1.*
 
 /coverage.txt
 /dist/
