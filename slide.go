@@ -321,6 +321,80 @@ func (f *File) SetShapeText(slideID int, shapeID int, text string) error {
 	return ErrShapeNotExist{shapeID}
 }
 
+// GetShapeText provides a function to get the text of the shape by the given
+// slide id and the shape id, as a flat string: the runs of the paragraph
+// are joined without the separator, the line break (a:br) of the paragraph
+// and the boundary between the paragraphs are the line break ("\n"), and
+// the field (a:fld, for example the slide number field) is the cached value
+// of the field. The formatting of the runs does not affect the text: it is
+// kept in the run properties (see GetShapeTextRuns).
+//
+//	f.GetShapeText(256, 8) // "Line 1\nLine 2"
+func (f *File) GetShapeText(slideID int, shapeID int) (string, error) {
+	runs, err := f.GetShapeTextRuns(slideID, shapeID)
+	if err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	for i, paragraph := range runs {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		for _, run := range paragraph {
+			switch run.Kind {
+			case TextRunText:
+				sb.WriteString(run.Run.Text)
+			case TextRunBreak:
+				sb.WriteString("\n")
+			case TextRunField:
+				sb.WriteString(run.Field.Text)
+			}
+		}
+	}
+
+	return sb.String(), nil
+}
+
+// GetShapeTextRuns provides a function to get the text runs of the shape by
+// the given slide id and the shape id, with the formatting of each run: the
+// paragraphs of the text body of the shape, each paragraph is the text runs
+// (the runs a:r, the line breaks a:br and the fields a:fld) in the document
+// order of the paragraph. The position of the line break (between which
+// runs) is the index of the break in the text runs of the paragraph. It
+// returns an empty slice when the shape has no text body.
+//
+//	runs, err := f.GetShapeTextRuns(256, 8)
+//	// runs[0] = the first paragraph: [run "Line 1", break, run "Line 2"]
+func (f *File) GetShapeTextRuns(slideID int, shapeID int) ([][]TextRun, error) {
+	var runs [][]TextRun
+	slide, err := f.slideReader(slideID)
+	if err != nil {
+		return runs, err
+	}
+
+	for i := range slide.CommonSlideData.ShapeTree.Children {
+		shape := slide.CommonSlideData.ShapeTree.Children[i].Shape
+		if shape == nil ||
+			shape.NonVisualShapeProperties == nil ||
+			shape.NonVisualShapeProperties.CommonNonVisualProperties == nil ||
+			shape.NonVisualShapeProperties.CommonNonVisualProperties.ID != shapeID {
+			continue
+		}
+
+		if shape.TextBody != nil {
+			runs = make([][]TextRun, 0, len(shape.TextBody.Paragraph))
+			for j := range shape.TextBody.Paragraph {
+				runs = append(runs, shape.TextBody.Paragraph[j].TextRuns())
+			}
+		}
+
+		return runs, nil
+	}
+
+	return nil, ErrShapeNotExist{shapeID}
+}
+
 // SetSlideBackground provides a function to set the slide background by given
 // slide id, replacing the current background of the slide.
 func (f *File) SetSlideBackground(slideID int, background DecodeBackground) error {

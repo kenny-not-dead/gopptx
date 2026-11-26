@@ -8,6 +8,7 @@
 package gopptx
 
 import (
+	"encoding/xml"
 	"errors"
 	"path/filepath"
 	"regexp"
@@ -455,5 +456,283 @@ func TestRunPropertiesItalic(t *testing.T) {
 	rp3 := notes.Paragraph[0].Runs[0].RunProperties
 	if rp3 == nil || rp3.Italic == nil || *rp3.Italic != 1 {
 		t.Fatalf("the italic attribute is not re-imported from the saved notes: %+v", rp3)
+	}
+}
+
+// TestParagraphTextRunsDocumentOrder checks that TextRuns returns the
+// children of the paragraph (the runs, the line breaks and the fields) in
+// the document order: the position of the line break (between which runs)
+// is the index of the break in the returned slice, and the run properties
+// (the formatting) of each element are returned with it.
+func TestParagraphTextRunsDocumentOrder(t *testing.T) {
+	const paragraphXML = `<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+		`<a:r><a:rPr lang="en-US" b="1"/><a:t>Line 1 </a:t></a:r>` +
+		`<a:br/>` +
+		`<a:fld id="{00000000-0000-0000-0000-000000000001}" type="slidenum"><a:t>4</a:t></a:fld>` +
+		`<a:r><a:t>Line 2</a:t></a:r>` +
+		`</a:p>`
+
+	var p DecodeParagraph
+	if err := xml.Unmarshal([]byte(paragraphXML), &p); err != nil {
+		t.Fatal(err)
+	}
+
+	runs := p.TextRuns()
+	if len(runs) != 4 {
+		t.Fatalf("the number of the text runs = %d, want 4: %+v", len(runs), runs)
+	}
+
+	wantKinds := []TextRunKind{TextRunText, TextRunBreak, TextRunField, TextRunText}
+	for i, run := range runs {
+		if run.Kind != wantKinds[i] {
+			t.Fatalf("the kind of the text run %d = %d, want %d: %+v", i, run.Kind, wantKinds[i], runs)
+		}
+	}
+
+	// the run keeps the text and the run properties of the run
+	if runs[0].Run.Text != "Line 1 " {
+		t.Fatalf("the text of the first run = %q, want %q", runs[0].Run.Text, "Line 1 ")
+	}
+	if runs[0].Run.RunProperties == nil ||
+		runs[0].Run.RunProperties.Lang != "en-US" ||
+		runs[0].Run.RunProperties.Bold == nil || *runs[0].Run.RunProperties.Bold != 1 {
+		t.Fatalf("the run properties of the first run are not returned: %+v", runs[0].Run.RunProperties)
+	}
+	// the line break is the second text run (index 1): after the first run
+	// and before the field
+	if runs[1].Break.RunProperties != nil {
+		t.Fatalf("the run properties of the line break are not empty: %+v", runs[1].Break.RunProperties)
+	}
+	// the field keeps the id, the type and the cached value of the field
+	if runs[2].Field.Type != FieldSlideNumber ||
+		runs[2].Field.ID != "{00000000-0000-0000-0000-000000000001}" ||
+		runs[2].Field.Text != "4" {
+		t.Fatalf("the field is not returned: %+v", runs[2].Field)
+	}
+	if runs[3].Run.Text != "Line 2" {
+		t.Fatalf("the text of the last run = %q, want %q", runs[3].Run.Text, "Line 2")
+	}
+}
+
+// TestParagraphTextRunsBlockOrder checks that TextRuns of the paragraph
+// built by the caller (without the document order) returns the children as
+// blocks: the runs, then the line breaks, then the fields (the same order
+// the paragraph is serialized).
+func TestParagraphTextRunsBlockOrder(t *testing.T) {
+	p := DecodeParagraph{
+		Runs:   []DecodeRuns{{Text: "first"}, {Text: "second"}},
+		Breaks: []DecodeBr{{}},
+		Field:  []DecodeField{{ID: "{00000000-0000-0000-0000-000000000001}", Type: FieldSlideNumber, Text: "1"}},
+	}
+
+	runs := p.TextRuns()
+	if len(runs) != 4 {
+		t.Fatalf("the number of the text runs = %d, want 4: %+v", len(runs), runs)
+	}
+	wantKinds := []TextRunKind{TextRunText, TextRunText, TextRunBreak, TextRunField}
+	for i, run := range runs {
+		if run.Kind != wantKinds[i] {
+			t.Fatalf("the kind of the text run %d = %d, want %d: %+v", i, run.Kind, wantKinds[i], runs)
+		}
+	}
+	if runs[0].Run.Text != "first" || runs[1].Run.Text != "second" {
+		t.Fatalf("the text of the runs is not returned: %+v", runs)
+	}
+	if runs[3].Field.Type != FieldSlideNumber {
+		t.Fatalf("the field is not returned: %+v", runs[3].Field)
+	}
+}
+
+// TestParagraphTextRunsLoaded checks that TextRuns of the paragraph of the
+// loaded presentation (the fixture with the text box created by
+// python-pptx, the line break between the runs) returns the children of
+// the paragraph in the document order of the slide part: the run, the line
+// break (the index 1), the run.
+func TestParagraphTextRunsLoaded(t *testing.T) {
+	fixture := filepath.Join("test", "textbreak.pptx")
+	f, err := OpenFile(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	shapes, err := f.GetShapes(256)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	found := false
+	for i := range shapes {
+		body := shapes[i].TextBody
+		if body == nil {
+			continue
+		}
+		for j := range body.Paragraph {
+			para := &body.Paragraph[j]
+			if len(para.Runs) != 2 || len(para.Breaks) != 1 ||
+				para.Runs[0].Text != "Line one" || para.Runs[1].Text != "Line two" {
+				continue
+			}
+
+			runs := para.TextRuns()
+			if len(runs) != 3 {
+				t.Fatalf("the number of the text runs = %d, want 3: %+v", len(runs), runs)
+			}
+			wantKinds := []TextRunKind{TextRunText, TextRunBreak, TextRunText}
+			for k, run := range runs {
+				if run.Kind != wantKinds[k] {
+					t.Fatalf("the kind of the text run %d = %d, want %d: %+v", k, run.Kind, wantKinds[k], runs)
+				}
+			}
+			// the line break is between the runs: the text of the shape is
+			// the runs with the line break (a:br) between them
+			if runs[0].Run.Text != "Line one" || runs[2].Run.Text != "Line two" {
+				t.Fatalf("the text of the runs is not preserved: %+v", runs)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the paragraph with the line break of the fixture was not found")
+	}
+}
+
+// TestGetShapeText checks that GetShapeText returns the text of the shape
+// as a flat string: the two shapes with the same visual text (two
+// paragraphs, one paragraph with the line break) return the same string
+// (the question of the issue), and the mixed text body (the runs, the empty
+// paragraph and the line break with the field) is rendered as in the design
+// of the issue.
+func TestGetShapeText(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+	slideID := f.GetSlideList()[0]
+	titleID := titleShapeID(t, f, slideID)
+
+	if _, err := f.GetShapeText(slideID, 999); !errors.As(err, new(ErrShapeNotExist)) {
+		t.Fatalf("expected ErrShapeNotExist, got %v", err)
+	}
+	if _, err := f.GetShapeText(999, titleID); !errors.As(err, new(ErrSlideNotExist)) {
+		t.Fatalf("expected ErrSlideNotExist, got %v", err)
+	}
+
+	// the issue example, slide 1: the text of two paragraphs
+	if err := f.SetShapeTextBody(slideID, titleID, DecodeTextBody{
+		BodyProperties: &DecodeBodyProperties{},
+		Paragraph: []DecodeParagraph{
+			{Runs: []DecodeRuns{{Text: "Line 1"}}},
+			{Runs: []DecodeRuns{{Text: "Line 2"}}},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	text, err := f.GetShapeText(slideID, titleID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "Line 1\nLine 2" {
+		t.Fatalf("GetShapeText = %q, want %q", text, "Line 1\nLine 2")
+	}
+
+	// the issue example, slide 2: one paragraph with the line break
+	if err := f.SetShapeText(slideID, titleID, "Line 1\nLine 2"); err != nil {
+		t.Fatal(err)
+	}
+	text, err = f.GetShapeText(slideID, titleID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "Line 1\nLine 2" {
+		t.Fatalf("GetShapeText = %q, want %q", text, "Line 1\nLine 2")
+	}
+
+	// the mixed example of the issue: the runs of the paragraph, the empty
+	// paragraph, the line break with the field
+	if err := f.SetShapeTextBody(slideID, titleID, DecodeTextBody{
+		BodyProperties: &DecodeBodyProperties{},
+		Paragraph: []DecodeParagraph{
+			{Runs: []DecodeRuns{{Text: "Foo "}, {Text: "Bar"}}},
+			{},
+			{
+				Runs:   []DecodeRuns{{Text: "Line 1"}},
+				Breaks: []DecodeBr{{}},
+				Field:  []DecodeField{{ID: "{00000000-0000-0000-0000-000000000001}", Type: FieldSlideNumber, Text: "4"}},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	text, err = f.GetShapeText(slideID, titleID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "Foo Bar\n\nLine 1\n4" {
+		t.Fatalf("GetShapeText = %q, want %q", text, "Foo Bar\n\nLine 1\n4")
+	}
+}
+
+// TestGetShapeTextRuns checks that GetShapeTextRuns returns the paragraphs
+// of the text body of the shape, each paragraph is the text runs in the
+// document order of the paragraph: the position of the line break (between
+// which runs) is the index of the break in the text runs of the paragraph.
+// The shape without the text body returns an empty slice.
+func TestGetShapeTextRuns(t *testing.T) {
+	f := NewFile()
+	defer f.Close()
+	slideID := f.GetSlideList()[0]
+	titleID := titleShapeID(t, f, slideID)
+
+	if _, err := f.GetShapeTextRuns(slideID, 999); !errors.As(err, new(ErrShapeNotExist)) {
+		t.Fatalf("expected ErrShapeNotExist, got %v", err)
+	}
+	if _, err := f.GetShapeTextRuns(999, titleID); !errors.As(err, new(ErrSlideNotExist)) {
+		t.Fatalf("expected ErrSlideNotExist, got %v", err)
+	}
+
+	// the shape without the text body returns an empty slice, the text of
+	// the shape is the empty string
+	shapeID, err := f.CreateShape(slideID, DecodeShapeProperties{}, DecodeTextBody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs, err := f.GetShapeTextRuns(slideID, shapeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runs == nil || len(runs) != 0 {
+		t.Fatalf("GetShapeTextRuns = %v, want an empty slice", runs)
+	}
+	if text, err := f.GetShapeText(slideID, shapeID); err != nil {
+		t.Fatal(err)
+	} else if text != "" {
+		t.Fatalf("GetShapeText = %q, want an empty string", text)
+	}
+
+	// the text of the shape: one paragraph with the line break between the
+	// runs
+	if err := f.SetShapeText(slideID, titleID, "Line 1\nLine 2"); err != nil {
+		t.Fatal(err)
+	}
+	runs, err = f.GetShapeTextRuns(slideID, titleID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("the number of the paragraphs = %d, want 1: %+v", len(runs), runs)
+	}
+	paragraph := runs[0]
+	if len(paragraph) != 3 {
+		t.Fatalf("the number of the text runs = %d, want 3: %+v", len(paragraph), paragraph)
+	}
+	wantKinds := []TextRunKind{TextRunText, TextRunBreak, TextRunText}
+	for i, run := range paragraph {
+		if run.Kind != wantKinds[i] {
+			t.Fatalf("the kind of the text run %d = %d, want %d: %+v", i, run.Kind, wantKinds[i], paragraph)
+		}
+	}
+	// the line break is the second text run (index 1): after the first run
+	// and before the second run
+	if paragraph[0].Run.Text != "Line 1" || paragraph[2].Run.Text != "Line 2" {
+		t.Fatalf("the text of the runs is not preserved: %+v", paragraph)
 	}
 }

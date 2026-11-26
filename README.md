@@ -687,6 +687,53 @@ func main() {
 }
 ```
 
+The text of the shape is read by the two functions: `GetShapeText` returns
+the text of the shape as a flat string: the runs of the paragraph are joined
+without the separator, the line break (`a:br`) of the paragraph and the
+boundary between the paragraphs are the line break, the field (for example
+the slide number field) is the cached value of the field, and the formatting
+of the runs does not affect the text. `GetShapeTextRuns` returns the text
+runs of the shape with the formatting: the paragraphs of the text body of
+the shape, each paragraph is the text runs (the runs `a:r`, the line breaks
+`a:br` and the fields `a:fld`) in the document order of the paragraph, and
+the position of the line break (between which runs) is the index of the
+break in the text runs of the paragraph.
+
+```go
+    // Get the text of the shape as a flat string, the line breaks and the
+    // boundaries of the paragraphs are the line break:
+    // "Line 1\nLine 2" for both the two paragraphs and the one paragraph
+    // with the line break.
+    text, err := f.GetShapeText(256, 8)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    fmt.Println(text)
+
+    // Get the text runs of the shape with the formatting of each run: the
+    // paragraphs of the text body, each paragraph is the text runs in the
+    // document order of the paragraph.
+    runs, err := f.GetShapeTextRuns(256, 8)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    for _, paragraph := range runs {
+        for _, run := range paragraph {
+            switch run.Kind {
+            case gopptx.TextRunText:
+                fmt.Print(run.Run.Text)
+            case gopptx.TextRunBreak:
+                fmt.Println()
+            case gopptx.TextRunField:
+                fmt.Print(run.Field.Text)
+            }
+        }
+        fmt.Println()
+    }
+```
+
 When a slide is modified and saved, the text of the slide is preserved
 together with the shapes and the pictures, including the line breaks, the
 fields (for example the slide number field of the type `slidenum`) and the

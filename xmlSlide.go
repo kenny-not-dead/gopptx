@@ -1130,6 +1130,80 @@ func (dst *DecodeParagraph) UnmarshalXML(d *xml.Decoder, start xml.StartElement)
 	}
 }
 
+// TextRunKind is the kind of a text run of the paragraph: the kind of the
+// child (the run, the line break or the field) of the a:p element.
+type TextRunKind int
+
+const (
+	// TextRunText is the text run (a:r) of the paragraph.
+	TextRunText TextRunKind = iota
+	// TextRunBreak is the line break (a:br) of the paragraph: the break of
+	// the text within the paragraph, not the end of the paragraph.
+	TextRunBreak
+	// TextRunField is the field (a:fld) of the paragraph, for example the
+	// slide number field.
+	TextRunField
+)
+
+// TextRun is one text run of the paragraph (a child of the a:p element):
+// the kind of the run and the element itself (the run a:r, the line break
+// a:br or the field a:fld). Exactly one of the Run, Break or Field fields
+// is filled in, depending on the kind.
+type TextRun struct {
+	Kind  TextRunKind
+	Run   DecodeRuns
+	Break DecodeBr
+	Field DecodeField
+}
+
+// TextRuns provides a function to get the text runs of the paragraph (the
+// runs a:r, the line breaks a:br and the fields a:fld) in the document
+// order of the paragraph: the position of a line break (between which
+// runs) is the index of the break in the returned slice, and the run
+// properties (the formatting) of each element are returned with it. When
+// the document order is not recorded (the paragraph is built by the caller)
+// the text runs are returned as blocks: the runs, then the line breaks,
+// then the fields (the same order the paragraph is serialized).
+func (p DecodeParagraph) TextRuns() []TextRun {
+	order := p.paragraphOrderEntries()
+	runs := make([]TextRun, 0, len(order))
+	for _, entry := range order {
+		switch entry.kind {
+		case paragraphOrderRun:
+			runs = append(runs, TextRun{Kind: TextRunText, Run: p.Runs[entry.index]})
+		case paragraphOrderBr:
+			runs = append(runs, TextRun{Kind: TextRunBreak, Break: p.Breaks[entry.index]})
+		case paragraphOrderField:
+			runs = append(runs, TextRun{Kind: TextRunField, Field: p.Field[entry.index]})
+		}
+	}
+
+	return runs
+}
+
+// paragraphOrderEntries returns the document order of the children (the
+// runs, the line breaks and the fields) of the paragraph, or the block
+// order (the runs, then the line breaks, then the fields, the same order
+// the paragraph is serialized) when the document order is not recorded.
+func (p DecodeParagraph) paragraphOrderEntries() []paragraphOrderEntry {
+	if len(p.paragraphOrder) > 0 {
+		return p.paragraphOrder
+	}
+
+	order := make([]paragraphOrderEntry, 0, len(p.Runs)+len(p.Breaks)+len(p.Field))
+	for i := range p.Runs {
+		order = append(order, paragraphOrderEntry{kind: paragraphOrderRun, index: i})
+	}
+	for i := range p.Breaks {
+		order = append(order, paragraphOrderEntry{kind: paragraphOrderBr, index: i})
+	}
+	for i := range p.Field {
+		order = append(order, paragraphOrderEntry{kind: paragraphOrderField, index: i})
+	}
+
+	return order
+}
+
 // DecodeBr directly maps the br element of the paragraph: the line break.
 type DecodeBr struct {
 	RunProperties *DecodeRunProperties `xml:"rPr,omitempty"`
